@@ -98,6 +98,7 @@ canvas{touch-action:none}
   <div class="acts">
     <button class="hot" id="actB">조사하기</button>
     <button id="noteB">수첩 보기</button>
+    <button id="shopB">🪙 금화 상점</button>
     <button class="alt" id="drawB" style="color:#fff;border-color:rgba(255,255,255,.4)">캐릭터 고치기</button>
     <div class="emo" id="emo"><button data-e="0" aria-label="웃음">😀</button><button data-e="1" aria-label="좋아요">👍</button><button data-e="2" aria-label="물음표">❓</button><button data-e="3" aria-label="불꽃">🔥</button></div>
     <p class="keys">방향 버튼을 누르고 있으면 계속 걸어가요. 물건 앞에서 조사하기! 키보드: 방향키, 스페이스, N 수첩</p>
@@ -225,7 +226,7 @@ const FOES=[];{
 
 let KEY='treasure-v4';const SALT='bosul-island-2026|';
 const sha=async t=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(SALT+t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
-const fresh=()=>({team:'',started:0,start:0,end:0,pen:0,wrong:0,hint:[0,0,0,0,0],open:[0,0,0,0,0],seen:[],memo:{},px:5,py:40,sprite:'',coins:[],zs:[],cmap:0,cx:[],bats:[]});
+const fresh=()=>({team:'',started:0,start:0,end:0,pen:0,wrong:0,hint:[0,0,0,0,0],open:[0,0,0,0,0],seen:[],memo:{},px:5,py:40,sprite:'',coins:[],zs:[],cmap:0,cx:[],bats:[],spent:0,pets:[],pet:-1});
 let S=fresh();
 const COINS=[[14,33],[28,35],[3,32],[60,31],[43,26],[34,22],[61,34],[34,39],[55,43]].concat(PB.slice(10,13).map(p=>[p[0],p[1]]),PC.slice(7,10).map(p=>[p[0],p[1]]));
 const ZN=['난파선 해변','덩굴 정글','박쥐 동굴','해골 바위','해적왕의 신전'];
@@ -235,7 +236,7 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tex=h=>h.replace(/\$(.+?)\$/g,(m,t)=>{try{return katex.renderToString(t,{throwOnError:false})}catch(e){return t}});
 
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),game=document.getElementById('game');
+const cv=document.getElementById('cv');let ctx=cv.getContext('2d');const game=document.getElementById('game');
 const ov=document.getElementById('ov'),dlg=document.getElementById('dlg'),promptB=document.getElementById('prompt');
 let T=36,CW=360,CH=300;
 function size(){const dpr=window.devicePixelRatio||1,wide=innerWidth>=900;CW=game.clientWidth;T=Math.max(30,Math.min(56,Math.floor(CW/(wide?15:12))));
@@ -362,7 +363,7 @@ function frame(tm){
   ctx.fillStyle='#1d8aa0';ctx.fillRect(0,0,CW,CH);
   const x0=Math.floor(camX/T),y0=Math.floor(camY/T),x1=Math.min(W-1,x0+Math.ceil(CW/T)+1),y1=Math.min(H-1,y0+Math.ceil(CH/T)+1);
   for(let y=Math.max(0,y0);y<=y1;y++)for(let x=Math.max(0,x0);x<=x1;x++){ground(g[y][x],x,y,x*T-camX,y*T-camY,tm)}
-  CAM.x=camX;CAM.y=camY;foesUpdate(dt);
+  CAM.x=camX;CAM.y=camY;foesUpdate(dt);{const tx=P.fx+(P.x-P.fx)*P.t-(P.x-P.fx||0)*0,ty=P.fy+(P.y-P.fy)*P.t;const gx=P.t<1?P.fx:PETT.x,gy=P.t<1?P.fy:PETT.y;if(P.t<1){PETT.x=P.fx;PETT.y=P.fy}const f=Math.min(1,dt/160);PETP.x+=(PETT.x-PETP.x)*f;PETP.y+=(PETT.y-PETP.y)*f;if(Math.hypot(PETP.x-P.x,PETP.y-P.y)>3){PETP.x=P.x;PETP.y=P.y+1}}
   COINS.forEach(([x,y],i)=>{if(S.coins.includes(i))return;const px=x*T-camX,py=y*T-camY;if(px<-T||py<-T||px>CW||py>CH)return;
     const w=Math.abs(Math.cos(tm/300+i))*T*.22+2,bob=Math.sin(tm/400+i)*3;ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(px+T/2,py+T*.8,T*.16,T*.05,0,0,7);ctx.fill();
     ctx.fillStyle='#ffc83d';ctx.strokeStyle='#b8860b';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(px+T/2,py+T*.45+bob,w,T*.22,0,0,7);ctx.fill();ctx.stroke()});
@@ -374,7 +375,8 @@ function frame(tm){
     const nOpen=S.open.filter(Boolean).length;
     for(const e of FOES){if(e.k==='bat'||!alive(e)||e.z>nOpen)continue;const ex=e.rx??e.x,ey=e.ry??e.y;if(Math.round(ey)!==y)continue;const qx=ex*T-camX,qy=ey*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawFoe(e,qx,qy,tm)}
     for(const k in others){const q=others[k];if(Math.round(q.ry)!==y||zoneOf(q.x,q.y)>nOpen)continue;
-      const qx=q.rx*T-camX,qy=q.ry*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawSprite(q.s,qx,qy);label(q.n,qx+T/2,qy-3);if(q.es&&tm-q.es<2500)bubble(EMO[q.e],qx+T/2,qy-T*.15,tm-q.es)}
+      const qx=q.rx*T-camX,qy=q.ry*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawSprite(q.s,qx,qy);if(q.pet>=0){ctx.save();ctx.translate(qx-T*.45,qy+T*.25);ctx.scale(.8,.8);drawPet(q.pet,0,0,tm);ctx.restore()}label(q.n,qx+T/2,qy-3);if(q.es&&tm-q.es<2500)bubble(EMO[q.e],qx+T/2,qy-T*.15,tm-q.es)}
+    if(S.pet>=0&&y===Math.round(PETP.y))drawPet(S.pet,PETP.x*T-camX,PETP.y*T-camY,tm);
     if(y===Math.round(ry)){drawSprite(S.sprite||DEFA,rx*T-camX,ry*T-camY+(P.t<1?Math.sin(tm/60)*1.5:0));label(S.team,rx*T-camX+T/2,ry*T-camY-3);if(MYE&&tm-MYE.t<2500)bubble(EMO[MYE.e],rx*T-camX+T/2,ry*T-camY-T*.45,tm-MYE.t)}}
   if(inCave(P.x,P.y)){const sx=rx*T-camX+T/2,sy=ry*T-camY+T/2,gr=ctx.createRadialGradient(sx,sy,T*1.6,sx,sy,T*4.3);
     gr.addColorStop(0,'rgba(6,6,14,0)');gr.addColorStop(1,'rgba(6,6,14,.96)');ctx.fillStyle=gr;ctx.fillRect(0,0,CW,CH);
@@ -390,7 +392,7 @@ function frame(tm){
 const gatesEl=document.getElementById('gates'),timerEl=document.getElementById('timer');
 const fmt=ms=>{const s=Math.max(0,Math.floor(ms/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 const total=()=>S.start?((S.end||Date.now())-S.start+S.pen*1000):0;
-function hud(){gatesEl.textContent='문 '+S.open.filter(Boolean).length+'/5';timerEl.textContent=fmt(total());document.getElementById('coins').textContent='🪙 '+S.coins.length+'/'+COINS.length}
+function hud(){gatesEl.textContent='문 '+S.open.filter(Boolean).length+'/5';timerEl.textContent=fmt(total());document.getElementById('coins').textContent='🪙 '+(S.coins.length-S.spent)}
 setInterval(hud,500);hud();
 
 function show(html){dlg.innerHTML=html;ov.classList.add('on');modal=true;held=null;
@@ -413,10 +415,11 @@ function lock(o){
   show(`<h2>${o.t}</h2>${o.h}
     <form id="lf" class="btns"><input class="code" id="ci" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="비밀번호"><button class="hot" type="submit">열기</button></form>
     <div class="msg" id="lm" aria-live="polite">${S.hint[i]?'힌트: '+o.hint:''}</div>
-    <div class="btns"><button type="button" class="alt" id="hb">${S.hint[i]?'힌트 다시 보기':'힌트 보기 (+1분)'}</button><button type="button" class="alt" id="cb">닫기</button></div>`);
+    <div class="btns"><button type="button" class="alt" id="hb">${S.hint[i]?'힌트 다시 보기':'힌트 보기 (+1분)'}</button>${!S.hint[i]&&S.coins.length-S.spent>=3?'<button type="button" class="alt" id="hc">🪙 금화 3개로 힌트 (벌칙 없음)</button>':''}<button type="button" class="alt" id="cb">닫기</button></div>`);
   const lm=dlg.querySelector('#lm');
   dlg.querySelector('#cb').addEventListener('click',close);
   dlg.querySelector('#hb').addEventListener('click',()=>{if(!S.hint[i]){S.hint[i]=1;S.pen+=60;save();hud();net.hint()}sfx('hint');lm.className='msg hint';lm.textContent='힌트: '+o.hint;dlg.querySelector('#hb').textContent='힌트 다시 보기'});
+  const hc=dlg.querySelector('#hc');if(hc)hc.addEventListener('click',()=>{if(S.hint[i]||S.coins.length-S.spent<3)return;S.hint[i]=2;S.spent+=3;save();hud();net.hint();sfx('coin');lm.className='msg hint';lm.textContent='힌트: '+o.hint;hc.remove();dlg.querySelector('#hb').textContent='힌트 다시 보기'});
   dlg.querySelector('#lf').addEventListener('submit',e=>{e.preventDefault();
     const v=dlg.querySelector('#ci').value.replace(/\s/g,'');if(!v)return;
     sha(o.id+v).then(hh=>{if(hh===o.hash){S.open[i]=1;if(i===4)S.end=Date.now();save();hud();net.gate(i);FLASH=1;confetti(i===4?160:70);sfx(i===4?'win':'open');
@@ -433,16 +436,17 @@ function notebook(){
   dlg.querySelector('#ok').addEventListener('click',close);
 }
 function win(){
-  stopBgm();const hn=S.hint.filter(Boolean).length,cn=S.coins.length;
+  stopBgm();const hn=S.hint.filter(h=>h===1).length,cn=S.coins.length;
   const ttl=hn===0&&S.wrong===0?'전설의 해적왕':hn===0&&S.wrong<=2?'명탐정 선장':cn===COINS.length?'황금 수집가':S.wrong<=5?'용감한 항해사':'끈질긴 모험가';
-  show(`<h2>보물을 찾았다!</h2><p><b>${esc(S.team)}</b> 해적단, 탈출 성공!</p>
+  show(`<h2>보물을 찾았다!</h2><p><b>${esc(S.team)}</b>, 탈출 성공!</p>
     <p class="big" style="font-size:20px">칭호: <b style="color:var(--coral)">${ttl}</b></p>
     <p>모은 금화 🪙 ${cn} / ${COINS.length}${cn===COINS.length?' (모두 찾았다!)':''} · 물리친 방해꾼 ⚔ ${S.bats.length} / ${FOES.length}</p>
     <div class="big" style="font:400 48px 'Black Han Sans',sans-serif;color:var(--coral)">${fmt(total())}</div>
-    <p>틀린 시도 ${S.wrong}번 (+${S.wrong*30}초) · 힌트 ${S.hint.filter(Boolean).length}번 (+${S.hint.filter(Boolean).length}분)</p>
-    <p class="msg hint">완료 ${new Date(S.end).toLocaleString('ko-KR')} — 이 화면을 캡처해서 제출하세요.</p>
-    <div class="btns"><button id="ok">섬 구경하기</button></div>`);
+    <p>틀린 시도 ${S.wrong}번 (+${S.wrong*30}초) · 힌트 ${hn}번 (+${hn}분)${S.hint.filter(h=>h===2).length?' · 금화 힌트 '+S.hint.filter(h=>h===2).length+'번':''}</p>
+    <p class="msg hint">완료 ${new Date(S.end).toLocaleString('ko-KR')}</p>
+    <div class="btns"><button class="hot" id="ct">📜 탈출 인증서 받기</button><button id="ok">섬 구경하기</button></div>`);
   dlg.querySelector('#ok').addEventListener('click',close);
+  dlg.querySelector('#ct').addEventListener('click',()=>cert(ttl));
 }
 const PAL=['','#1d1d1d','#ffffff','#f5cfa8','#e53935','#1e88e5','#43a047','#ffc83d','#8e24aa','#6b4423'];
 const DEF='000044440000000444444000004444444440003333333300003133331300003333333300000333333000000055550000003555555300000555555000000590095000000110011000';
@@ -516,7 +520,7 @@ async function connect(room,name){
     const onEl=document.getElementById('online');onEl.hidden=false;
     RD.onValue(RD.ref(db,'presence/'+room),snap=>{const v=snap.val()||{},nx={};let n=0;
       for(const k in v){n++;if(k===uid)continue;const o=v[k];if(!o||typeof o!=='object')continue;const p=others[k],x=+o.x||0,y=+o.y||0;
-        const e=(+o.e|0)%4,et=+o.et||0;nx[k]={x,y,n:'',e,et,es:p&&et&&p.et!==et?performance.now():(p?p.es:0),s:typeof o.s==='string'&&SPR.test(o.s)?o.s:DEFA,rx:p?p.rx:x,ry:p?p.ry:y};const z=zoneOf(x,y);if(z>RIV.cur)RIV.cur=z}
+        const e=(+o.e|0)%4,et=+o.et||0;nx[k]={x,y,n:'',pet:Number.isInteger(o.pet)&&o.pet>=0&&o.pet<3?o.pet:-1,e,et,es:p&&et&&p.et!==et?performance.now():(p?p.es:0),s:typeof o.s==='string'&&SPR.test(o.s)?o.s:DEFA,rx:p?p.rx:x,ry:p?p.ry:y};const z=zoneOf(x,y);if(z>RIV.cur)RIV.cur=z}
       if(!RIV.init){RIV.init=1;RIV.max=RIV.cur}else if(RIV.cur>RIV.max){RIV.max=RIV.cur;toast('다른 해적이 '+ZN[RIV.max]+'에 도착했다!')}RIV.cur=0;
       others=nx;onEl.textContent='접속 '+n});
     net={on:true,
@@ -524,7 +528,7 @@ async function connect(room,name){
       wrong:()=>FS.updateDoc(pref,{wrong:FS.increment(1)}).catch(()=>{}),
       hint:()=>FS.updateDoc(pref,{hints:FS.increment(1)}).catch(()=>{}),
       emote:e=>RD.update(me,{e,et:Date.now()}).catch(()=>{}),
-      pos:full=>{const d={x:P.x,y:P.y,t:RD.serverTimestamp()};if(full){d.s=S.sprite||DEFA}(full?RD.set(me,d):RD.update(me,d)).catch(()=>{})}};
+      pos:full=>{const d={x:P.x,y:P.y,t:RD.serverTimestamp()};if(full){d.s=S.sprite||DEFA;d.pet=S.pet}(full?RD.set(me,d):RD.update(me,d)).catch(()=>{})}};
     return{data:ps.exists()?ps.data():{}};
   }catch(e){console.error(e);return{err:'net',msg:String(e&&e.message||e)}}
 }
@@ -534,7 +538,7 @@ function join(){
     <p>섬 곳곳의 단서를 모아 문 <b>5개</b>의 비밀번호를 알아내자. 가짜 단서도 있으니 조심!</p>
     <p class="msg hint">틀린 비밀번호는 +30초, 힌트는 +1분이 더해져요.</p>
     <form id="jf"><div class="btns"><input id="rc" placeholder="방 코드" maxlength="8" autocomplete="off" style="flex:1 1 120px;text-transform:uppercase" value="${esc(q.get('room')||'')}" required>
-    <input id="tn" placeholder="이름 또는 모둠" maxlength="16" style="flex:2 1 160px" value="${esc(lastName)}" required></div>
+    <input id="tn" placeholder="이름" maxlength="16" style="flex:2 1 160px" value="${esc(lastName)}" required></div>
     <div class="btns"><button class="hot" type="submit" id="jb">입장하기</button><button type="button" class="alt" id="tch">🔒 선생님</button></div></form><div class="msg no" id="jm" aria-live="polite"></div>`);
   dlg.querySelector('#tch').addEventListener('click',teacherLogin);
   dlg.querySelector('#jf').addEventListener('submit',async e=>{e.preventDefault();
@@ -548,7 +552,7 @@ function join(){
     S.team=name;CX=new Set(S.cx||[]);
     if(r.data)for(let i=0;i<5;i++)if(r.data['g'+i])S.open[i]=1;
     P.x=P.fx=S.px;P.y=P.fy=S.py;P.t=1;
-    const go=()=>{if(!S.start)S.start=Date.now();S.started=1;save();hud();close();net.pos(true);onStep();if(S.open[4]&&S.end)win()};
+    const go=()=>{PETP={x:P.x,y:P.y};PETT={x:P.x,y:P.y};if(!S.start)S.start=Date.now();S.started=1;save();hud();close();net.pos(true);onStep();if(S.open[4]&&S.end)win()};
     if(r.err==='config'){alertSolo(()=>S.sprite?go():editor(go))}else S.sprite?go():editor(go);
   });
 }
@@ -747,9 +751,59 @@ function foeFight(e){sfx(e.k==='bat'?'bat':'foe');let Q=QG[e.k]();
       if(+btn.dataset.i===Q.a){S.bats.push(e.id);save();sfx('coin');confetti(30);close();SAFE=performance.now()+2500;const n=FOES.filter(o=>o.z===e.z&&!alive(o)).length,m=FOES.filter(o=>o.z===e.z).length;toast('물리쳤다! 이 구역 방해꾼 '+n+'/'+m)}
       else{S.pen+=10;save();hud();sfx('wrong');Q=QG[e.k]();draw('공격당했다! (+10초) 다른 문제야!');dlg.classList.remove('shake');void dlg.offsetWidth;dlg.classList.add('shake')}}))};
   draw()}
+// ===== 금화 상점, 펫, 인증서 =====
+const PETS=[{n:'앵무새 친구',c:5,d:'어깨 위에서 파닥파닥 따라다녀요.'},{n:'아기 거북',c:8,d:'느릿느릿 하지만 끝까지 따라와요.'},{n:'황금 원숭이',c:12,d:'반짝반짝 빛나는 전설의 원숭이!'}];
+let PETP={x:S.px,y:S.py+1},PETT={x:S.px,y:S.py+1};
+function drawPet(i,px,py,tm){const cx=px+T/2,cy=py+T/2,b=Math.sin(tm/180)*2;ctx.fillStyle='rgba(0,0,0,.18)';ctx.beginPath();ctx.ellipse(cx,py+T*.85,T*.2,T*.06,0,0,7);ctx.fill();
+  if(i===0){ctx.fillStyle='#e53935';ctx.beginPath();ctx.ellipse(cx,cy+b,T*.14,T*.19,0,0,7);ctx.fill();ctx.fillStyle='#1e88e5';ctx.beginPath();ctx.ellipse(cx+T*.08,cy+T*.04+b,T*.07,T*.14,-.3,0,7);ctx.fill();
+    ctx.fillStyle='#ffc107';ctx.beginPath();ctx.moveTo(cx-T*.1,cy-T*.1+b);ctx.lineTo(cx-T*.22,cy-T*.04+b);ctx.lineTo(cx-T*.1,cy-T*.02+b);ctx.fill();ctx.fillStyle='#000';ctx.fillRect(cx-T*.05,cy-T*.12+b,3,3)}
+  else if(i===1){ctx.fillStyle='#7cb342';[[-.18,.12],[.18,.12],[-.16,-.06],[.16,-.06]].forEach(([a,c])=>{ctx.beginPath();ctx.arc(cx+a*T,cy+c*T+T*.1,T*.06,0,7);ctx.fill()});ctx.beginPath();ctx.arc(cx+T*.24,cy+T*.06,T*.08,0,7);ctx.fill();
+    ctx.fillStyle='#5d4037';ctx.beginPath();ctx.ellipse(cx,cy+T*.08,T*.2,T*.15,0,0,7);ctx.fill();ctx.strokeStyle='#8d6e63';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy+T*.08,T*.08,0,7);ctx.stroke();ctx.fillStyle='#000';ctx.fillRect(cx+T*.26,cy+T*.03,2,2)}
+  else{const gl=.5+.5*Math.sin(tm/250);ctx.fillStyle=`rgba(255,215,64,${.25+.25*gl})`;ctx.beginPath();ctx.arc(cx,cy+b,T*.3,0,7);ctx.fill();ctx.fillStyle='#ffc83d';ctx.beginPath();ctx.arc(cx,cy+b,T*.16,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx-T*.15,cy-T*.06+b,T*.06,0,7);ctx.arc(cx+T*.15,cy-T*.06+b,T*.06,0,7);ctx.fill();ctx.fillStyle='#fff3c4';ctx.beginPath();ctx.arc(cx,cy+T*.03+b,T*.09,0,7);ctx.fill();ctx.fillStyle='#000';ctx.fillRect(cx-T*.05,cy-T*.04+b,2,2);ctx.fillRect(cx+T*.03,cy-T*.04+b,2,2)}}
+function shop(){const av=S.coins.length-S.spent;
+  show(`<h2>🪙 금화 상점</h2><p>가진 금화: <b>${av}개</b> (모은 금화 ${S.coins.length}/${COINS.length})</p>
+    <div class="note"><b class="t">💡 금화 힌트 쿠폰 — 금화 3개</b><p class="msg hint" style="margin:0">자물쇠 앞에서 "금화 3개로 힌트"를 누르면 시간 벌칙 없이 힌트를 볼 수 있어요.</p></div>
+    ${PETS.map((p,i)=>{const own=S.pets.includes(i),on=S.pet===i;return `<div class="note" style="display:flex;gap:12px;align-items:center"><canvas data-pv="${i}" width="56" height="56" style="width:56px;height:56px;background:#efd391;border-radius:10px;flex:none"></canvas>
+      <div style="flex:1"><b class="t">${p.n} — 금화 ${p.c}개</b><span class="msg hint">${p.d}</span></div>
+      <button type="button" class="${own?'alt':'hot'}" data-p="${i}" ${!own&&av<p.c?'disabled':''}>${on?'데리고 다니는 중':own?'데리고 다니기':'사기'}</button></div>`}).join('')}
+    <p class="msg hint">금화를 15개 모두 모으면 탈출 인증서가 황금색으로 바뀌어요!</p>
+    <div class="btns"><button id="ok">닫기</button></div>`);
+  dlg.querySelectorAll('canvas[data-pv]').forEach(c=>{const x=c.getContext('2d'),sv=ctx,sT=T;ctx=x;T=56;drawPet(+c.dataset.pv,0,0,performance.now());ctx=sv;T=sT});
+  dlg.querySelectorAll('button[data-p]').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.p,p=PETS[i];
+    if(!S.pets.includes(i)){if(S.coins.length-S.spent<p.c)return;S.spent+=p.c;S.pets.push(i);sfx('open');confetti(40);toast('🎉 '+p.n+'를 데려왔다!')}
+    S.pet=S.pet===i?-1:i;PETP={x:P.x,y:P.y+1};PETT={x:P.x,y:P.y};save();hud();net.pos(true);shop()}));
+  dlg.querySelector('#ok').addEventListener('click',close)}
+async function cert(ttl){
+  try{await Promise.race([Promise.all(['64px "Black Han Sans"','600 24px "Noto Sans KR"'].map(f=>document.fonts.load(f))),new Promise(r=>setTimeout(r,1500))])}catch(e){}
+  const gold=S.coins.length===COINS.length,W2=720,H2=1000,c=document.createElement('canvas');c.width=W2;c.height=H2;const x=c.getContext('2d');
+  const TF='"Black Han Sans",sans-serif',BF='"Noto Sans KR","Malgun Gothic",sans-serif',main=gold?'#9a6b00':'#0e5e6f',acc=gold?'#e0a800':'#ff6b4a';
+  const bg=x.createLinearGradient(0,0,0,H2);bg.addColorStop(0,gold?'#fff6d6':'#fffaf0');bg.addColorStop(1,gold?'#ffe9a8':'#f3ead6');x.fillStyle=bg;x.fillRect(0,0,W2,H2);
+  x.strokeStyle=main;x.lineWidth=14;x.strokeRect(22,22,W2-44,H2-44);x.strokeStyle=acc;x.lineWidth=4;x.strokeRect(42,42,W2-84,H2-84);
+  x.fillStyle=acc;[[42,42],[W2-42,42],[42,H2-42],[W2-42,H2-42]].forEach(([a,b])=>{x.beginPath();x.arc(a,b,12,0,7);x.fill()});
+  const C=(t,y,f,col)=>{x.font=f;x.fillStyle=col;x.textAlign='center';x.fillText(t,W2/2,y)};
+  C(gold?'GOLDEN PIRATE CERTIFICATE':'CERTIFICATE OF ESCAPE',112,`700 20px ${BF}`,acc);
+  C(gold?'황금 해적 인증서':'보물섬 탈출 인증서',185,`60px ${TF}`,main);x.fillStyle=acc;x.fillRect(W2/2-160,210,320,4);
+  const sp=spriteCanvas(S.sprite||DEFA);x.imageSmoothingEnabled=false;x.drawImage(sp,W2/2-50,232,100,100);
+  C(S.team,380,`46px ${TF}`,'#26263a');x.strokeStyle='#26263a';x.lineWidth=2;x.beginPath();x.moveTo(180,398);x.lineTo(W2-180,398);x.stroke();
+  const words=`위 학생은 중학교 3학년 '제곱근과 실수' 단원의 수수께끼를 풀어 다섯 개의 관문을 열고 해적왕의 보물을 찾아냈기에 이 인증서를 수여합니다.`;
+  x.font=`600 24px ${BF}`;x.fillStyle='#3a3550';let line='',y=452;for(const ch of words){if(x.measureText(line+ch).width>560&&line){x.fillText(line.trim(),W2/2,y);y+=40;line=ch}else line+=ch}if(line)x.fillText(line.trim(),W2/2,y);
+  y+=36;x.fillStyle=gold?'#fff2c2':'#efe6cf';x.beginPath();x.roundRect(100,y,W2-200,230,18);x.fill();
+  const rows=[['칭호',ttl],['탈출 기록',fmt(total())],['모은 금화',`${S.coins.length} / ${COINS.length}`],['물리친 방해꾼',`${S.bats.length} / ${FOES.length}`],['틀린 시도 · 힌트',`${S.wrong}번 · ${S.hint.filter(h=>h===1).length}번`]];
+  rows.forEach(([a,b],i)=>{const yy=y+46+i*40;x.textAlign='left';x.font=`600 24px ${BF}`;x.fillStyle='#5b5470';x.fillText(a,140,yy);x.textAlign='right';x.font=`800 26px ${BF}`;x.fillStyle=i===0?acc:'#26263a';x.fillText(b,W2-140,yy)});
+  const d=new Date(S.end||Date.now());C(`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`,H2-130,`600 24px ${BF}`,'#3a3550');
+  let h=7;for(const ch of `${S.team}|${S.end}|${S.wrong}|${S.coins.length}`)h=(h*31+ch.charCodeAt(0))%2176782336;C('인증번호 TI-'+h.toString(36).toUpperCase().padStart(6,'0'),H2-90,`600 18px ${BF}`,'#8a8399');
+  x.save();x.translate(W2-130,H2-118);x.rotate(-.18);x.strokeStyle='#d0342c';x.lineWidth=5;x.beginPath();x.arc(0,0,52,0,7);x.stroke();x.lineWidth=2;x.beginPath();x.arc(0,0,43,0,7);x.stroke();
+  x.fillStyle='#d0342c';x.textAlign='center';x.font=`24px ${TF}`;x.fillText('탈출',0,-4);x.fillText('성공',0,24);x.restore();
+  const url=c.toDataURL('image/png');
+  show(`<h2>📜 ${gold?'황금 해적 인증서':'탈출 인증서'}</h2><img src="${url}" alt="탈출 인증서" style="width:100%;border-radius:8px;display:block">
+    <p class="msg hint">그림을 길게 누르거나 아래 버튼으로 저장하세요.</p>
+    <div class="btns"><a id="dl" download="보물섬_탈출_인증서.png" href="${url}"><button type="button" class="hot">이미지로 저장하기</button></a><button id="bk">돌아가기</button></div>`);
+  dlg.querySelector('#bk').addEventListener('click',win)}
 const act=()=>{auResume();if(modal)return;const n=near();if(n)inspect(n)};
 promptB.addEventListener('click',act);document.getElementById('actB').addEventListener('click',act);
 document.getElementById('noteB').addEventListener('click',()=>{if(!modal&&S.started)notebook()});
+document.getElementById('shopB').addEventListener('click',()=>{if(!modal&&S.started)shop()});
 document.getElementById('drawB').addEventListener('click',()=>{if(!modal&&S.started)editor(()=>{save();close();net.pos(true)})});
 const KM={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
 addEventListener('keydown',e=>{
