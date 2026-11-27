@@ -62,6 +62,14 @@ input.code{letter-spacing:.3em;text-align:center}
 .sw.on{border-color:var(--coral);box-shadow:0 0 0 2px var(--card) inset}
 .tc{min-height:36px;padding:0 10px;font-size:14px;background:transparent;color:var(--ink);border:2px solid var(--line)}
 .tc.on{border-color:var(--coral);background:var(--coral);color:#fff}
+.snd{border:0;color:#fff;cursor:pointer;min-height:0;font-family:inherit}
+.toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(10,20,25,.82);color:#fff;padding:7px 16px;border-radius:99px;font-weight:800;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.toast.on{opacity:1}
+.emo{display:flex;gap:6px}.emo button{flex:1;min-height:48px;font-size:22px;background:rgba(255,255,255,.16);padding:0}
+canvas{touch-action:none}
+@media(min-width:700px){.pad{grid-template-columns:repeat(3,76px);grid-template-rows:repeat(3,76px)}.pad button{font-size:28px}}
+.stage{display:block}
+@media(min-width:900px){.wrap{max-width:1240px}.stage{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:16px;align-items:start}.stage .ctl{grid-template-columns:1fr;margin-top:12px;justify-items:center}.stage .acts{width:100%}}
 .shake{animation:sh .35s}@keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media(prefers-reduced-motion:reduce){.shake{animation:none}}
 @media(max-width:420px){.pad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px)}}
@@ -71,11 +79,13 @@ input.code{letter-spacing:.3em;text-align:center}
 <div class="wrap">
 <header>
   <div><h1>보물섬 탈출</h1><p class="sub">중3 · 제곱근과 실수 · 구역 5개</p></div>
-  <div class="hud"><span class="pill" id="online" hidden>접속 0</span><span class="pill" id="gates">문 0/5</span><span class="pill" id="timer">00:00</span></div>
+  <div class="hud"><span class="pill" id="online" hidden>접속 0</span><span class="pill" id="coins">🪙 0/15</span><button class="pill snd" id="sndB" aria-label="소리 켜기/끄기">🔊</button><span class="pill" id="gates">문 0/5</span><span class="pill" id="timer">00:00</span></div>
 </header>
+<div class="stage">
 <div class="game" id="game">
   <canvas id="cv"></canvas>
   <button class="prompt" id="prompt">섬을 돌아다니며 단서를 찾아보세요</button>
+  <div class="toast" id="toast" aria-live="polite"></div>
   <div class="ov" id="ov"><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
 </div>
 <div class="ctl">
@@ -88,28 +98,55 @@ input.code{letter-spacing:.3em;text-align:center}
     <button class="hot" id="actB">조사하기</button>
     <button id="noteB">수첩 보기</button>
     <button class="alt" id="drawB" style="color:#fff;border-color:rgba(255,255,255,.4)">캐릭터 고치기</button>
-    <p class="keys">키보드: 방향키·WASD 이동, 스페이스 조사, N 수첩</p>
+    <div class="emo" id="emo"><button data-e="0" aria-label="웃음">😀</button><button data-e="1" aria-label="좋아요">👍</button><button data-e="2" aria-label="물음표">❓</button><button data-e="3" aria-label="불꽃">🔥</button></div>
+    <p class="keys">방향 버튼을 누르고 있으면 계속 걸어가요. 물건 앞에서 조사하기! 키보드: 방향키, 스페이스, N 수첩</p>
   </div>
+</div>
 </div>
 </div>
 <script src="katex.min.js"></script>
 <script type="module">
 {
-const W=37,H=32,g=[];
+const W=64,H=46,g=[];
 for(let y=0;y<H;y++)g.push(Array(W).fill('~'));
 const rect=(x1,y1,x2,y2,c)=>{for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)g[y][x]=c};
-rect(2,2,34,21,'.');rect(2,2,16,12,',');
-rect(17,2,34,12,'#');rect(18,3,33,11,'_');
-rect(21,3,21,8,'#');rect(25,6,25,11,'#');rect(29,3,29,8,'#');
-rect(2,13,16,13,'T');rect(17,13,17,21,'~');rect(22,18,29,20,',');
-rect(12,15,14,16,'W');
-rect(17,22,34,30,'#');rect(18,23,33,29,'=');[[21,26],[29,26]].forEach(([x,y])=>g[y][x]='#');
-[[2,2],[2,21],[3,21],[2,20],[34,13],[34,21],[33,21],[16,2],[2,3]].forEach(([x,y])=>g[y][x]='~');
-[[3,3],[6,3],[10,3],[15,3],[2,6],[7,5],[12,7],[15,5],[3,10],[10,9],[12,11],[16,11],[6,11],[8,2],[13,2],[11,5],[15,8],[7,8],[4,6]].forEach(([x,y])=>g[y][x]='T');
-[[16,14],[2,16],[9,21],[5,14],[16,17]].forEach(([x,y])=>g[y][x]='P');
-[[19,14],[33,15],[20,21],[28,21],[34,18],[30,13]].forEach(([x,y])=>g[y][x]='R');
-const BLOCK=new Set(['~','T','P','R','#','W']);
-
+let SEED=7321;const rnd=()=>{SEED=(SEED*1103515245+12345)&0x7fffffff;return SEED/0x7fffffff};
+function maze(x0,y0,nx,ny,fl,loop){const vis=new Set(['0,0']),st=[[0,0]];g[y0][x0]=fl;
+  while(st.length){const[i,j]=st[st.length-1],nb=[[1,0],[-1,0],[0,1],[0,-1]].filter(([a,b])=>{const u=i+a,v=j+b;return u>=0&&v>=0&&u<nx&&v<ny&&!vis.has(u+','+v)});
+    if(!nb.length){st.pop();continue}const[a,b]=nb[Math.floor(rnd()*nb.length)],u=i+a,v=j+b;vis.add(u+','+v);g[y0+2*j+b][x0+2*i+a]=fl;g[y0+2*v][x0+2*u]=fl;st.push([u,v])}
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){if(i<nx-1&&rnd()<loop)g[y0+2*j][x0+2*i+1]=fl;if(j<ny-1&&rnd()<loop)g[y0+2*j+1][x0+2*i]=fl}}
+// A 난파선 해변
+rect(2,29,29,43,'.');
+for(let x=2;x<=29;x++){if(rnd()<.45)g[43][x]='~';if(g[43][x]==='~'&&rnd()<.2)g[42][x]='~'}
+for(let y=31;y<=42;y++)if(rnd()<.35)g[y][2]='~';
+rect(8,30,16,30,'R');rect(8,31,8,36,'R');rect(16,31,16,36,'R');rect(9,31,15,35,'h');rect(9,36,15,36,'^');g[36][12]='H';
+rect(19,33,24,35,'W');
+[[4,33],[5,33],[4,34],[26,30],[27,31],[20,40],[21,40],[26,38],[11,41],[18,30]].forEach(([x,y])=>g[y][x]='R');
+[[3,36],[7,41],[17,37],[23,42],[28,33],[13,39],[25,30],[6,35]].forEach(([x,y])=>g[y][x]='P');
+// B 덩굴 정글 (미로)
+rect(2,2,29,27,'T');rect(2,28,29,28,'^');
+maze(3,3,13,12,',',.1);rect(13,11,17,15,',');
+g[26][15]=g[27][15]=',';g[28][15]='H';g[11][28]=g[11][29]=',';g[11][30]=g[11][31]='b';
+for(let y=3;y<=26;y++)for(let x=3;x<=28;x++){if(g[y][x]==='T'&&rnd()<.14)g[y][x]='B';else if(g[y][x]===','&&rnd()<.07)g[y][x]='f'}
+// C 박쥐 동굴 (어두운 미로)
+rect(32,1,62,20,'#');maze(34,3,14,9,'_',.12);rect(45,9,49,13,'_');g[11][33]='_';g[11][32]='_';g[20][54]='_';
+// D 해골 바위
+rect(33,21,61,31,'.');rect(35,22,39,26,',');rect(56,27,60,31,',');
+rect(41,22,53,22,'R');rect(41,23,41,28,'R');rect(53,23,53,28,'R');rect(42,23,52,27,'h');rect(42,28,52,28,'^');g[28][47]='H';
+[[34,28],[58,22],[60,25],[36,31],[50,30],[33,24],[61,29]].forEach(([x,y])=>g[y][x]='R');
+// E 해적왕의 신전
+rect(32,32,62,44,'X');rect(33,33,61,43,'=');rect(33,37,57,37,'X');rect(37,40,61,40,'X');g[32][47]='=';
+[[38,35],[52,35],[46,38],[40,42],[56,42]].forEach(([x,y])=>g[y][x]='X');
+const BLOCK=new Set(['~','T','P','R','#','W','B','^','X']);
+const TALL=new Set(['T','P','R','#','W','B','^','X']);
+// 막다른 길 찾기 (단서를 숨길 곳)
+function deadEnds(sx,sy,inZone){const dist=new Map([[sx+','+sy,0]]),q=[[sx,sy]],out=[];
+  while(q.length){const[x,y]=q.shift(),d=dist.get(x+','+y);let n=0;
+    for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const u=x+a,v=y+b;if(!inZone(u,v)||BLOCK.has(g[v][u]))continue;n++;if(!dist.has(u+','+v)){dist.set(u+','+v,d+1);q.push([u,v])}}
+    if(n===1&&d>3)out.push([x,y,d])}
+  return out.sort((a,b)=>b[2]-a[2])}
+const DE_B=deadEnds(15,26,(x,y)=>x>=3&&x<=32&&y>=3&&y<=27&&!(x>=29&&y!==11)).filter(([x,y])=>!(x>=12&&x<=18&&y>=10&&y<=16)&&x<=28);
+const DE_C=deadEnds(33,11,(x,y)=>(x>=32&&x<=61&&y>=2&&y<=19)||(x===54&&y===20)).filter(([x,y])=>!(x>=44&&x<=50&&y>=8&&y<=14)&&x>=34&&y<=19);
 const prob=(t)=>`<p>${t}</p>`;
 const O=[
  {id:'log',x:3,y:20,k:'book',t:'항해 일지',h:'<p>폭풍에 배가 부서졌다. 이 섬의 <b>앵무새는 언제나 거짓말만</b> 한다. 진짜 단서는 바다가 실어다 준다.</p>'},
@@ -118,32 +155,42 @@ const O=[
  {id:'a3',x:11,y:17,k:'box',s:'★',t:'부서진 상자',p:1,h:prob('$(-\\sqrt{6})^2$ 의 값은?')},
  {id:'a4',x:7,y:20,k:'palm',s:'◆',t:'야자수',p:1,h:prob('나무껍질에 새겨진 글.<br>제곱근 $16$ 의 값은?')},
  {id:'a5',x:9,y:16,k:'box',s:'■',t:'나무 통',p:1,h:prob('$\\sqrt{12x}$ 가 자연수가 되도록 하는 가장 작은 자연수 $x$ 의 값은?')},
- {id:'bottle',x:15,y:21,k:'bottle',t:'병 속 편지',h:'<p>정글 문의 번호는 <b>◆ ▲ ■ ★ ●</b> 의 답을 차례로 이어 쓴 다섯 자리 수다.<br>— 선장 J</p>'},
- {id:'parrot',x:6,y:17,k:'parrot',t:'앵무새',h:'<p>끼룩! 정글 문 번호는 <b>▲ ● ■ ★ ◆</b> 순서야! 진짜야, 끼룩!</p>'},
- {id:'g1',hash:'b37e5498a0db93bf9ba67c99d192b6b30b6673d6671c9b0b7f52c4889b9d37b6',x:9,y:13,k:'gate1',gate:0,t:'정글 문',h:'<p>덩굴로 엮은 나무 문. 다섯 자리 숫자 자물쇠가 걸려 있다.</p>',hint:'앵무새는 거짓말쟁이예요. 물가를 따라 걸으며 병을 찾아보세요. 그리고 "제곱근 16"과 "16의 제곱근"은 달라요! 12 = 2² × 3 이에요.'},
- {id:'b1',x:4,y:4,k:'tablet',s:'A',t:'석판 A',h:'<div class="big">$2+\\sqrt{2}$</div>'},
- {id:'b2',x:8,y:10,k:'tablet',s:'B',t:'석판 B',h:'<div class="big">$\\sqrt{20}$</div>'},
- {id:'b3',x:13,y:4,k:'tablet',s:'C',t:'석판 C',h:'<div class="big">$7-\\sqrt{5}$</div>'},
- {id:'b4',x:5,y:8,k:'tablet',s:'D',t:'석판 D',h:'<div class="big">$\\sqrt{3}$</div>'},
- {id:'b5',x:14,y:10,k:'tablet',s:'E',t:'석판 E',h:'<div class="big">$\\sqrt{16}$</div>'},
- {id:'b6',x:11,y:8,k:'tablet',s:'F',t:'석판 F',h:'<div class="big">$\\sqrt{2}+1$</div>'},
- {id:'b7',x:7,y:11,k:'tablet',s:'G',t:'석판 G',h:'<div class="big">$\\sqrt{0.04}$</div>'},
- {id:'pillar',x:10,y:6,k:'pillar',t:'고대 돌기둥',h:'<p><b>무리수</b>가 새겨진 석판만 골라라. 작은 수부터 큰 수 순서로 늘어놓고, 각 수의 <b>정수 부분</b>을 차례로 읽으면 동굴 문이 열린다.</p>'},
+ {id:'a6',k:'box',s:'♥',t:'찢어진 돛 조각',p:1,h:prob('$\\sqrt{2}(\\sqrt{18}-\\sqrt{8})$ 의 값은?')},
+ {id:'bottle',x:15,y:21,k:'bottle',t:'병 속 편지',h:'<p>정글 문의 번호는 <b>◆ ▲ ■ ♥ ★ ●</b> 의 답을 차례로 이어 쓴 여섯 자리 수다.<br>— 선장 J</p>'},
+ {id:'parrot',x:6,y:17,k:'parrot',t:'앵무새',h:'<p>끼룩! 정글 문 번호는 <b>♥ ▲ ● ■ ★ ◆</b> 순서야! 진짜야, 끼룩!</p>'},
+ {id:'j1',k:'crate',junk:1,t:'빈 상자',h:'<p>열어 보니 텅 비어 있다. 꽝!</p>'},
+ {id:'j2',k:'barrel',junk:1,t:'낡은 통',h:'<p>뚜껑을 열자 게 한 마리가 튀어나와 옆으로 도망갔다!</p>'},
+ {id:'j3',k:'boot',junk:1,t:'낡은 장화',h:'<p>모래에 반쯤 묻힌 장화. 냄새가 고약하다…</p>'},
+ {id:'g1',hash:'806a249e765474d58d211f5baaf8db94255ba347930e9b4213e308aebdfabd59',x:9,y:13,k:'gate1',gate:0,t:'정글 문',h:'<p>덩굴로 엮은 나무 문. 여섯 자리 숫자 자물쇠가 걸려 있다.</p>',hint:'앵무새는 거짓말쟁이예요. 물가를 따라 걸으며 병을 찾아보세요. 그리고 "제곱근 16"과 "16의 제곱근"은 달라요! 12 = 2² × 3 이에요. ♥는 분배법칙으로 괄호를 풀어 보세요.'},
+ {id:'b1',x:0,y:0,k:'tablet',s:'A',t:'석판 A',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\sqrt{8}\div\sqrt{2}+\sqrt{2}$</div>'},
+ {id:'b2',x:0,y:0,k:'tablet',s:'B',t:'석판 B',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\sqrt{5}\times\sqrt{4}$</div>'},
+ {id:'b3',x:0,y:0,k:'tablet',s:'C',t:'석판 C',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\sqrt{45}\div\sqrt{5}+4-\sqrt{5}$</div>'},
+ {id:'b4',x:0,y:0,k:'tablet',s:'D',t:'석판 D',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\dfrac{3}{\sqrt{3}}$</div>'},
+ {id:'b5',x:0,y:0,k:'tablet',s:'E',t:'석판 E',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\sqrt{2}\times\sqrt{8}$</div>'},
+ {id:'b6',x:0,y:0,k:'tablet',s:'F',t:'석판 F',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\dfrac{\sqrt{6}}{\sqrt{3}}+1$</div>'},
+ {id:'b7',x:0,y:0,k:'tablet',s:'G',t:'석판 G',p:1,h:'<p>석판에 식이 새겨져 있다. 계산하면 어떤 수가 될까?</p><div class="big">$\sqrt{\dfrac{9}{4}}$</div>'},
+ {id:'pillar',x:10,y:6,k:'pillar',t:'고대 돌기둥',h:'<p>석판의 식을 계산하라. 그 값이 <b>무리수</b>인 석판만 골라, 작은 수부터 큰 수 순서로 늘어놓고, 각 수의 <b>정수 부분</b>을 차례로 읽으면 동굴 문이 열린다.</p>'},
  {id:'wet',x:3,y:11,k:'note',t:'젖은 쪽지',h:'<p>석판의 수를 모두 더하면… (나머지는 물에 젖어 읽을 수 없다)</p>'},
- {id:'g2',hash:'2ba6a07fe4e80527e5a45c5ae04dd66283151a2958a1577f8f67247e65e52db3',x:17,y:7,k:'gate2',gate:1,t:'동굴 쇠창살',h:'<p>녹슨 쇠창살에 다섯 자리 자물쇠가 달려 있다.</p>',hint:'√16 = 4, √0.04 = 0.2 는 무리수가 아니에요. √2≈1.41, √3≈1.73, √5≈2.24 로 어림해 보세요.'},
+ {id:'j4',k:'stump',junk:1,t:'버섯 그루터기',h:'<p>알록달록한 버섯이 자라 있다. 먹으면 안 될 것 같다.</p>'},
+ {id:'j5',k:'monkey',junk:1,t:'원숭이',h:'<p>끼끼! 원숭이가 바나나 껍질을 던지고 나무 위로 사라졌다.</p>'},
+ {id:'g2',hash:'2ba6a07fe4e80527e5a45c5ae04dd66283151a2958a1577f8f67247e65e52db3',x:17,y:7,k:'gate2',gate:1,t:'동굴 쇠창살',h:'<p>녹슨 쇠창살에 다섯 자리 자물쇠가 달려 있다.</p>',hint:'먼저 각 석판의 식을 간단히 하세요. 계산 결과가 유리수인 석판이 2개 있어요. √2≈1.41, √3≈1.73, √5≈2.24 로 어림해 보세요.'},
  {id:'c1',x:20,y:4,k:'crystal',c:'#ff4d5e',t:'빨간 수정',p:1,h:prob('$\\sqrt{2}\\times\\sqrt{32}$ 의 값은?')},
  {id:'c2',x:31,y:4,k:'crystal',c:'#4d8dff',t:'파란 수정',p:1,h:prob('$\\sqrt{75}=a\\sqrt{3}$ 일 때, $a$ 의 값은?')},
  {id:'c3',x:22,y:10,k:'crystal',c:'#3ddc84',t:'초록 수정',p:1,h:prob('$\\dfrac{12}{\\sqrt{6}}=b\\sqrt{6}$ 일 때, $b$ 의 값은?')},
  {id:'c4',x:30,y:10,k:'crystal',c:'#ffd23d',t:'노란 수정',p:1,h:prob('$\\sqrt{3}\\times\\sqrt{12}$ 의 값은?')},
  {id:'c5',x:27,y:9,k:'crystal',c:'#b04dff',t:'보라 수정',p:1,h:prob('$\\sqrt{18}\\times\\sqrt{a}=12$ 일 때, 자연수 $a$ 의 값은?')},
  {id:'rune',x:27,y:4,k:'rune',t:'벽에 새겨진 글',h:'<p>(빨강의 답 × 파랑의 답) ÷ 초록의 답 + 보라의 답 = 돌문의 번호.<br><b>노란 수정은 저주받았다.</b> 믿지 마라.</p>'},
+ {id:'j6',k:'barrel',junk:1,t:'썩은 통',h:'<p>박쥐 똥이 수북하다… 으악!</p>'},
+ {id:'j7',k:'torch',junk:1,t:'꺼진 횃불',h:'<p>누군가 쓰다 버린 횃불. 불은 이미 꺼져 있다.</p>'},
  {id:'g3',hash:'08f5c28730b2b0bc0b81bc3e98b61465155bbd6eee0b0c5565e48a5abd46a608',x:26,y:12,k:'gate3',gate:2,t:'돌문',h:'<p>숫자를 새겨 넣는 돌판이 있다. 몇 자리인지는 알 수 없다.</p>',hint:'동굴 벽 어딘가에 새겨진 글을 찾으세요. 노란 수정의 답은 쓰지 않아요. 곱셈·나눗셈을 먼저 하고 마지막에 더해요.'},
  {id:'d1',x:21,y:17,k:'skull',t:'해골 (m)',p:1,h:prob('$\\sqrt{12}+\\sqrt{27}=m\\sqrt{3}$ 일 때, $m$ 의 값은?')},
  {id:'d4',x:24,y:14,k:'skull',t:'해골 (p)',p:1,h:prob('$\\sqrt{45}-\\dfrac{10}{\\sqrt{5}}=p\\sqrt{5}$ 일 때, $p$ 의 값은?')},
+ {id:'d5',k:'skull',t:'해골 (q)',p:1,h:prob('$\\dfrac{\\sqrt{48}}{\\sqrt{3}}-\\sqrt{2}\\times\\sqrt{2}=q$ 일 때, $q$ 의 값은?')},
  {id:'d2',x:26,y:15,k:'skull',t:'해골 (n)',p:1,h:prob('$\\sqrt{50}-\\sqrt{8}=n\\sqrt{2}$ 일 때, $n$ 의 값은?')},
  {id:'d3',x:31,y:17,k:'skull',t:'해골 (k)',p:1,h:prob('$3\\sqrt{2}+5\\sqrt{2}-\\sqrt{2}=k\\sqrt{2}$ 일 때, $k$ 의 값은?')},
  {id:'ghost',x:24,y:19,k:'ghost',t:'유령 선장',h:'<p>크하하, 잘 왔다 꼬마 해적. 해골 바위 뒤 신전 문의 번호는, 해골들의 답을 <b>동쪽(오른쪽) 해골부터</b> 차례로 읽은 수다. 해골이 몇 개였더라… 크하하!</p>'},
- {id:'g4',hash:'10aceaef28281c2128a4468186985da57717045bad5a1d62680eafec814bf995',x:30,y:22,k:'gate3',gate:3,t:'신전 돌문',h:'<p>해골 바위 뒤, 덩굴에 가려진 돌문. 숫자 판이 붙어 있다.</p>',hint:'지도에서 오른쪽이 동쪽이에요. 해골은 모두 4개! 위쪽에 숨어 있는 해골도 찾아보세요.'},
+ {id:'j8',k:'rockskull',junk:1,t:'해골 모양 바위',h:'<p>가까이서 보니 그냥 해골처럼 생긴 바위다.</p>'},
+ {id:'g4',hash:'942b6aeec90e7ac5fa18673d030616e9535fe7e2eb000dd41e7892d5efb4a222',x:30,y:22,k:'gate3',gate:3,t:'신전 돌문',h:'<p>해골 바위 뒤, 덩굴에 가려진 돌문. 숫자 판이 붙어 있다.</p>',hint:'지도에서 오른쪽이 동쪽이에요. 해골은 모두 5개! 절벽 위 고원에 있는 해골도 잊지 마세요.'},
  {id:'e1',x:19,y:24,k:'statue',s:'1',t:'석상 1',p:1,h:'<p>받침돌에 새겨진 문장.</p><p class="big" style="font-size:19px">“모든 정수는 유리수이다.”</p>'},
  {id:'e2',x:23,y:24,k:'statue',s:'2',t:'석상 2',p:1,h:'<p>받침돌에 새겨진 문장.</p><p class="big" style="font-size:19px">“$\\sqrt{9}$ 는 무리수이다.”</p>'},
  {id:'e3',x:19,y:28,k:'statue',s:'3',t:'석상 3',p:1,h:'<p>받침돌에 새겨진 문장.</p><p class="big" style="font-size:19px">“순환소수는 모두 유리수이다.”</p>'},
@@ -151,16 +198,30 @@ const O=[
  {id:'e5',x:27,y:28,k:'statue',s:'5',t:'석상 5',p:1,h:'<p>받침돌에 새겨진 문장.</p><p class="big" style="font-size:19px">“서로 다른 두 실수 사이에는 무수히 많은 실수가 있다.”</p>'},
  {id:'e6',x:32,y:28,k:'statue',s:'6',t:'석상 6',p:1,h:'<p>받침돌에 새겨진 문장.</p><p class="big" style="font-size:19px">“$-\\sqrt{16}$ 의 제곱근은 $\\pm 2$ 이다.”</p>'},
  {id:'altar',x:25,y:26,k:'altar',t:'제단',p:1,h:prob('$\\sqrt{7}$ 의 소수 부분을 $a$ 라 할 때, $a(a+4)$ 의 값은?')},
- {id:'tablet2',x:27,y:24,k:'rune',t:'신전 벽화',h:'<p>참된 말을 새긴 석상의 번호를 <b>작은 번호부터</b> 이어 쓰고, 맨 끝에 <b>제단의 답</b>을 붙여라. 그것이 해적왕 보물의 열쇠다.</p>'},
+ {id:'altar2',k:'altar',t:'작은 제단',p:1,h:prob('$\\sqrt{5}\\times\\sqrt{20}-\\sqrt{81}$ 의 값은?')},
+ {id:'tablet2',x:27,y:24,k:'rune',t:'신전 벽화',h:'<p>참된 말을 새긴 석상의 번호를 <b>작은 번호부터</b> 이어 쓰고, 맨 끝에 <b>두 제단의 답을 더한 수</b>를 붙여라. 그것이 해적왕 보물의 열쇠다.</p>'},
  {id:'scrib',x:32,y:24,k:'note',t:'낡은 낙서',h:'<p>먼저 온 해적의 낙서: “거짓인 석상 번호를 큰 것부터 쓰는 거였나…? 상자가 안 열려!”</p>'},
- {id:'g5',hash:'9dab7a9e52a9ed3b727aab6569dc2d4ee5b78980297f27d9e2b9b0b9e9689b0d',x:18,y:26,k:'chest',gate:4,t:'해적왕의 보물 상자',h:'<p>황금 자물쇠가 달린 상자. 숫자 다이얼이 달려 있다.</p>',hint:'석상 4: √2 + (−√2) 를 생각해 보세요. 석상 6: 음수의 제곱근은 실수 범위에서 없어요. 제단: 2 < √7 < 3 이니까 a = √7 − 2 예요.'}
+ {id:'g5',hash:'2395a1eb80ea00a34d8f692b0347b1ffe4d0397e71d54cdcf2a53b3a46cdc305',x:18,y:26,k:'chest',gate:4,t:'해적왕의 보물 상자',h:'<p>황금 자물쇠가 달린 상자. 숫자 다이얼이 달려 있다.</p>',hint:'석상 4: √2 + (−√2) 를 생각해 보세요. 석상 6: 음수의 제곱근은 실수 범위에서 없어요. 제단: 2 < √7 < 3 이니까 a = √7 − 2 예요. 제단은 두 개! 두 답을 더해요.'}
 ];
-const OM={};O.forEach(o=>{OM[o.x+','+o.y]=o;if(o.k==='gate1')g[o.y][o.x]=',';if(o.k==='gate2'||o.k==='gate3')g[o.y][o.x]='_'});
+const POS={log:[6,39],a1:[12,32],a2:[27,41],a3:[18,34],a4:[3,30],a5:[25,32],bottle:[29,39],parrot:[9,38],j1:[22,37],j2:[6,31],j3:[16,42],g1:[15,28],
+  pillar:[15,13],a6:[28,30],d5:[55,25],altar2:[34,38],g2:[32,11],rune:[47,9],g3:[54,20],
+  d1:[35,29],d4:[45,24],d2:[50,26],d3:[59,23],ghost:[38,24],j8:[57,30],g4:[47,32],
+  e1:[34,34],e2:[56,34],tablet2:[40,33],e3:[40,38],e4:[52,39],scrib:[60,38],e5:[36,42],e6:[50,43],altar:[44,42],g5:[60,42]};
+const pick=(L,n,k)=>{const step=Math.max(1,Math.floor(L.length/n));return L.filter((_,i)=>i%step===0).slice(0,n).concat(L.filter((_,i)=>i%step!==0)).slice(0,n)};
+const PB=pick(DE_B,13),PC=pick(DE_C,10);
+['b1','b2','b3','b4','b5','b6','b7','wet','j4','j5'].forEach((id,i)=>POS[id]=PB[i]);
+['c1','c2','c3','c4','c5','j6','j7'].forEach((id,i)=>POS[id]=PC[i]);
+O.forEach(o=>{const p=POS[o.id];if(p){o.x=p[0];o.y=p[1]}});
+const OM={};O.forEach(o=>{OM[o.x+','+o.y]=o});
 
 let KEY='treasure-v4';const SALT='bosul-island-2026|';
 const sha=async t=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(SALT+t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
-const fresh=()=>({team:'',started:0,start:0,end:0,pen:0,wrong:0,hint:[0,0,0,0,0],open:[0,0,0,0,0],seen:[],memo:{},px:4,py:19,sprite:''});
+const fresh=()=>({team:'',started:0,start:0,end:0,pen:0,wrong:0,hint:[0,0,0,0,0],open:[0,0,0,0,0],seen:[],memo:{},px:5,py:40,sprite:'',coins:[],zs:[]});
 let S=fresh();
+const COINS=[[14,33],[28,35],[3,32],[60,31],[43,26],[34,22],[61,34],[34,39],[55,43]].concat(PB.slice(10,13).map(p=>[p[0],p[1]]),PC.slice(7,10).map(p=>[p[0],p[1]]));
+const ZN=['난파선 해변','덩굴 정글','박쥐 동굴','해골 바위','해적왕의 신전'];
+const EMO=['😀','👍','❓','🔥'];
+let CAM={x:0,y:0},TAP=null,MYE=null,FLASH=0,BAN=null,PART=[],curZone=-1,RIV={init:0,cur:0,max:0};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tex=h=>h.replace(/\$(.+?)\$/g,(m,t)=>{try{return katex.renderToString(t,{throwOnError:false})}catch(e){return t}});
@@ -168,8 +229,8 @@ const tex=h=>h.replace(/\$(.+?)\$/g,(m,t)=>{try{return katex.renderToString(t,{t
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),game=document.getElementById('game');
 const ov=document.getElementById('ov'),dlg=document.getElementById('dlg'),promptB=document.getElementById('prompt');
 let T=36,CW=360,CH=300;
-function size(){const dpr=window.devicePixelRatio||1;CW=game.clientWidth;T=Math.max(30,Math.min(48,Math.floor(CW/12)));
-  const rows=Math.max(8,Math.min(11,Math.floor(window.innerHeight*0.56/T)));CH=rows*T;
+function size(){const dpr=window.devicePixelRatio||1,wide=innerWidth>=900;CW=game.clientWidth;T=Math.max(30,Math.min(56,Math.floor(CW/(wide?15:12))));
+  const rows=Math.max(7,Math.min(14,Math.floor((innerHeight-(wide?120:340))/T)));CH=rows*T;
   cv.width=CW*dpr;cv.height=CH*dpr;cv.style.height=CH+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
 const ro=new ResizeObserver(size);ro.observe(game);size();
 
@@ -182,32 +243,59 @@ function tryMove(d){P.dir=d;const[dx,dy]=D[d],nx=P.x+dx,ny=P.y+dy;if(blocked(nx,
   P.fx=P.x;P.fy=P.y;P.x=nx;P.y=ny;P.t=0}
 function near(){const[dx,dy]=D[P.dir];const f=objAt(P.x+dx,P.y+dy);if(f)return f;
   for(const k in D){const o=objAt(P.x+D[k][0],P.y+D[k][1]);if(o)return o}return null}
-const inCave=(x,y)=>x>=18&&x<=33&&y>=3&&y<=11||(x===17&&y===7)||(x===26&&y===12);
+const inCave=(x,y)=>x>=32&&y<=20;
 
 const hash=(x,y)=>((x*73856093)^(y*19349663))>>>0;
-function base(c,x,y,px,py){
-  const b=c==='T'?',':(c==='P'||c==='R'||c==='W')?'.':c;
-  const h=hash(x,y);
-  if(b==='.'){ctx.fillStyle='#efd391';ctx.fillRect(px,py,T,T);ctx.fillStyle='#d9b86c';ctx.fillRect(px+(h%T),py+((h>>5)%T),2,2);ctx.fillRect(px+((h>>9)%T),py+((h>>13)%T),2,2)}
-  else if(b===','){ctx.fillStyle='#6fbf62';ctx.fillRect(px,py,T,T);ctx.fillStyle='#5aa84f';ctx.fillRect(px+(h%(T-4)),py+((h>>6)%(T-6)),3,6);ctx.fillRect(px+((h>>11)%(T-4)),py+((h>>3)%(T-6)),3,5)}
-  else if(b==='_'){ctx.fillStyle='#6b5a4e';ctx.fillRect(px,py,T,T);ctx.fillStyle='#5d4d43';ctx.fillRect(px+(h%T),py+((h>>5)%T),4,3)}
-  else if(b==='='){ctx.fillStyle='#c9bfae';ctx.fillRect(px,py,T,T);ctx.strokeStyle='#b3a893';ctx.lineWidth=1;ctx.strokeRect(px+.5,py+.5,T-1,T-1);ctx.fillStyle='#bdb29e';ctx.fillRect(px+(h%(T-6)),py+((h>>5)%(T-4)),5,2)}
-  else if(b==='#'){ctx.fillStyle='#3b3238';ctx.fillRect(px,py,T,T);ctx.fillStyle='#4d424a';ctx.fillRect(px,py,T,T*.25);ctx.fillStyle='#2c252a';ctx.fillRect(px+(h%(T-8)),py+T*.5,8,3)}
+const isW=(x,y)=>x<0||y<0||x>=W||y>=H||g[y][x]==='~';
+const SH=g.map((r,y)=>r.map((c,x)=>c==='~'&&[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].some(([a,b])=>!isW(x+a,y+b))));
+const under=(x,y)=>{const c=g[y][x];if(c==='T'||c==='B')return',';if(c==='#')return'_';if(c==='X')return'=';if(c==='^')return'h';
+  if(c==='P'||c==='R'||c==='W')return (x<=31&&y<=27)||(x>=35&&x<=39&&y>=22&&y<=26)?',':(x>=42&&x<=52&&y>=23&&y<=27)?'h':'.';return c};
+function ground(c0,x,y,px,py,tm){
+  const c=under(x,y),h=hash(x,y);
+  if(c==='~'){ctx.fillStyle=SH[y][x]?'#2fa3b5':'#1a7f95';ctx.fillRect(px,py,T,T);
+    const o=Math.sin(tm/700+x*.9+y*1.3)*T*.15;ctx.strokeStyle=SH[y][x]?'rgba(255,255,255,.45)':'rgba(255,255,255,.22)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(px+T*.35+o,py+T*.45,T*.16,Math.PI*1.1,Math.PI*1.9);ctx.stroke();
+    if(SH[y][x]){ctx.fillStyle='rgba(255,255,255,.55)';[[0,-1],[0,1],[-1,0],[1,0]].forEach(([a,b])=>{if(!isW(x+a,y+b)){const f=2+Math.sin(tm/400+x+y)*1.5;
+      if(b===-1)ctx.fillRect(px,py,T,f);if(b===1)ctx.fillRect(px,py+T-f,T,f);if(a===-1)ctx.fillRect(px,py,f,T);if(a===1)ctx.fillRect(px+T-f,py,f,T)}})}
+    if(c0==='b'){ctx.fillStyle='#8a5a2b';ctx.fillRect(px,py+T*.12,T,T*.76);ctx.fillStyle='#a8743f';for(let i=0;i<4;i++)ctx.fillRect(px+i*T/4+1,py+T*.12,T/4-2,T*.76);ctx.fillStyle='#5a3416';ctx.fillRect(px,py+T*.1,T,3);ctx.fillRect(px,py+T*.86,T,3)}
+    return}
+  if(c==='.'){ctx.fillStyle='#efd391';ctx.fillRect(px,py,T,T);ctx.fillStyle='#ddbb72';ctx.fillRect(px+(h%T),py+((h>>5)%T),2,2);ctx.fillRect(px+((h>>9)%T),py+((h>>13)%T),2,2);ctx.fillStyle='#f7e2aa';ctx.fillRect(px+((h>>3)%T),py+((h>>7)%T),2,2)}
+  else if(c===','||c==='f'){ctx.fillStyle=(h&1)?'#6fbf62':'#69b85c';ctx.fillRect(px,py,T,T);ctx.fillStyle='#57a64c';ctx.fillRect(px+(h%(T-4)),py+((h>>6)%(T-6)),3,6);ctx.fillRect(px+((h>>11)%(T-4)),py+((h>>3)%(T-6)),3,5);
+    if(c==='f'){[['#ff8fab',.25,.3],['#fff176',.65,.55],['#ffffff',.4,.75]].forEach(([col,a,b])=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(px+T*a,py+T*b,T*.07,0,7);ctx.fill()})}}
+  else if(c==='h'){ctx.fillStyle=x<=31?'#f6e2a8':'#c9b8a0';ctx.fillRect(px,py,T,T);ctx.fillStyle=x<=31?'#e9cf8a':'#b5a48c';ctx.fillRect(px+(h%T),py+((h>>5)%T),3,2)}
+  else if(c==='H'){ctx.fillStyle=x<=31&&y<=30?'#6fbf62':x<=31?'#efd391':'#efd391';ctx.fillRect(px,py,T,T);ctx.fillStyle='#9c8a72';for(let i=0;i<4;i++){ctx.fillStyle=i%2?'#a89880':'#8c7a62';ctx.fillRect(px+T*.08,py+i*T/4,T*.84,T/4-1)}}
+  else if(c==='_'){ctx.fillStyle='#5f5046';ctx.fillRect(px,py,T,T);ctx.fillStyle='#544538';ctx.fillRect(px+(h%T),py+((h>>5)%T),5,3);ctx.fillStyle='#6b5b50';ctx.fillRect(px+((h>>8)%T),py+((h>>2)%T),3,2)}
+  else if(c==='='){ctx.fillStyle=((x+y)&1)?'#cfc4ad':'#c4b8a0';ctx.fillRect(px,py,T,T);ctx.strokeStyle='rgba(0,0,0,.08)';ctx.strokeRect(px+.5,py+.5,T-1,T-1)}
 }
-function tile(c,x,y,px,py,tm){
-  if(c==='~'){ctx.fillStyle='#1d8aa0';ctx.fillRect(px,py,T,T);ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=2;
-    const o=Math.sin(tm/700+x*.9+y*1.3)*T*.15;ctx.beginPath();ctx.arc(px+T*.35+o,py+T*.45,T*.18,Math.PI*1.1,Math.PI*1.9);ctx.stroke();return}
-  base(c,x,y,px,py);const cx=px+T/2,cy=py+T/2;
-  if(c==='T'){ctx.fillStyle='rgba(0,0,0,.18)';ctx.beginPath();ctx.ellipse(cx,py+T*.88,T*.36,T*.1,0,0,7);ctx.fill();
-    ctx.fillStyle='#6b4423';ctx.fillRect(cx-T*.07,cy,T*.14,T*.38);
-    ctx.fillStyle='#2e7d4a';ctx.beginPath();ctx.arc(cx,cy-T*.05,T*.4,0,7);ctx.fill();ctx.fillStyle='#3f9a5b';ctx.beginPath();ctx.arc(cx-T*.1,cy-T*.15,T*.22,0,7);ctx.fill()}
-  else if(c==='P'){palm(cx,cy)}
-  else if(c==='R'){ctx.fillStyle='#8b8f96';ctx.beginPath();ctx.ellipse(cx,cy+T*.1,T*.4,T*.3,0,0,7);ctx.fill();ctx.fillStyle='#a9adb3';ctx.beginPath();ctx.ellipse(cx-T*.08,cy,T*.2,T*.12,0,0,7);ctx.fill()}
-  else if(c==='W'){ctx.fillStyle='#7a4a24';ctx.fillRect(px,py+T*.15,T,T*.85);ctx.strokeStyle='#5a3416';ctx.lineWidth=2;for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(px,py+T*.15+i*T*.21);ctx.lineTo(px+T,py+T*.15+i*T*.21);ctx.stroke()}
-    if(x===13&&y===15){ctx.fillStyle='#4a2c12';ctx.fillRect(cx-3,py-T*.6,6,T*.8);ctx.fillStyle='#e9e1cf';ctx.beginPath();ctx.moveTo(cx+3,py-T*.55);ctx.lineTo(cx+T*.45,py-T*.1);ctx.lineTo(cx+3,py);ctx.fill()}}
+function block(px,py,top,face,line,below){
+  ctx.fillStyle=top;ctx.fillRect(px,py-T*.4,T,below?T*1.4:T*.75);
+  if(!below){ctx.fillStyle=face;ctx.fillRect(px,py+T*.35,T,T*.65);ctx.fillStyle=line;ctx.fillRect(px,py+T*.35,T,2);ctx.fillRect(px+T*.33,py+T*.55,2,T*.45);ctx.fillRect(px,py+T*.66,T,2);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(px,py+T*.92,T,T*.08)}}
+function tall(c,x,y,px,py,tm){
+  const cx=px+T/2,cy=py+T/2,h=hash(x,y);
+  if(c==='T'){const fade=P.x===x&&(P.y===y-1)?.55:1;ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(cx,py+T*.88,T*.42,T*.12,0,0,7);ctx.fill();
+    ctx.fillStyle='#6b4423';ctx.fillRect(cx-T*.08,cy+T*.05,T*.16,T*.4);ctx.globalAlpha=fade;
+    const G=[['#1f6b3c','#2e8a4f','#45a865'],['#246f3a','#33914f','#4fb36a']][h&1];
+    ctx.fillStyle=G[0];ctx.beginPath();ctx.arc(cx,cy-T*.1,T*.56,0,7);ctx.fill();ctx.fillStyle=G[1];ctx.beginPath();ctx.arc(cx-T*.08,cy-T*.2,T*.44,0,7);ctx.fill();
+    ctx.fillStyle=G[2];ctx.beginPath();ctx.arc(cx-T*.18,cy-T*.32,T*.2,0,7);ctx.fill();ctx.globalAlpha=1}
+  else if(c==='B'){ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(cx,py+T*.86,T*.42,T*.1,0,0,7);ctx.fill();
+    ctx.fillStyle='#2f7d45';ctx.beginPath();ctx.arc(cx-T*.18,cy+T*.12,T*.3,0,7);ctx.arc(cx+T*.18,cy+T*.12,T*.3,0,7);ctx.arc(cx,cy-T*.08,T*.32,0,7);ctx.fill();
+    ctx.fillStyle='#e53950';[[-.15,.05],[.2,.1],[0,-.15]].forEach(([a,b])=>{ctx.beginPath();ctx.arc(cx+a*T,cy+b*T,T*.05,0,7);ctx.fill()})}
+  else if(c==='P'){ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(cx+T*.25,py+T*.9,T*.4,T*.1,0,0,7);ctx.fill();palm(cx,cy)}
+  else if(c==='R'){ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(cx,py+T*.88,T*.44,T*.12,0,0,7);ctx.fill();
+    ctx.fillStyle='#7d8188';ctx.beginPath();ctx.ellipse(cx,cy+T*.1,T*.45,T*.38,0,0,7);ctx.fill();ctx.fillStyle='#9a9ea5';ctx.beginPath();ctx.ellipse(cx-T*.06,cy-T*.02,T*.34,T*.26,0,0,7);ctx.fill();
+    ctx.fillStyle='#c0c4ca';ctx.beginPath();ctx.ellipse(cx-T*.15,cy-T*.1,T*.12,T*.07,0,0,7);ctx.fill()}
+  else if(c==='#')block(px,py,'#3a3036','#4c4048','#2a2228',y+1<H&&g[y+1][x]==='#');
+  else if(c==='X')block(px,py,'#8f8577','#b0a594','#7a7062',y+1<H&&g[y+1][x]==='X');
+  else if(c==='^'){const top=x<=31?'#f6e2a8':'#c9b8a0';ctx.fillStyle=top;ctx.fillRect(px,py-T*.2,T,T*.35);ctx.fillStyle='#9b7b55';ctx.fillRect(px,py+T*.15,T,T*.85);
+    ctx.fillStyle='#7f6343';ctx.fillRect(px,py+T*.15,T,3);ctx.fillRect(px+(h%T),py+T*.4,T*.3,3);ctx.fillRect(px+((h>>4)%T),py+T*.65,T*.35,3);ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(px,py+T*.9,T,T*.1)}
+  else if(c==='W'){const top=y===33,mast=x===21&&y===33;ctx.fillStyle='#6a3f1c';ctx.fillRect(px,py+(top?T*.1:0),T,T*(top?.9:1));ctx.strokeStyle='#4a2a10';ctx.lineWidth=2;
+    for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(px,py+i*T/4);ctx.lineTo(px+T,py+i*T/4);ctx.stroke()}
+    if(y===35){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(px,py+T*.85,T,T*.15)}
+    if(mast){ctx.fillStyle='#3e2410';ctx.fillRect(cx-3,py-T*1.3,6,T*1.4);ctx.fillStyle='#e9e1cf';ctx.beginPath();ctx.moveTo(cx+3,py-T*1.2);ctx.lineTo(cx+T*.8,py-T*.4);ctx.lineTo(cx+3,py-T*.2);ctx.fill();
+      ctx.fillStyle='#1d1d1d';ctx.fillRect(cx-T*.5,py-T*1.35,T*.5,T*.3);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cx-T*.25,py-T*1.2,T*.07,0,7);ctx.fill()}}
 }
-function palm(cx,cy){ctx.strokeStyle='#8a5a2b';ctx.lineWidth=T*.12;ctx.beginPath();ctx.moveTo(cx,cy+T*.42);ctx.quadraticCurveTo(cx+T*.15,cy,cx,cy-T*.25);ctx.stroke();
-  ctx.fillStyle='#2f9a4f';for(let i=0;i<5;i++){const a=i*1.26-0.3;ctx.beginPath();ctx.ellipse(cx+Math.cos(a)*T*.22,cy-T*.25+Math.sin(a)*T*.12,T*.25,T*.08,a,0,7);ctx.fill()}}
+function palm(cx,cy){ctx.strokeStyle='#8a5a2b';ctx.lineWidth=T*.13;ctx.beginPath();ctx.moveTo(cx,cy+T*.42);ctx.quadraticCurveTo(cx+T*.22,cy-T*.1,cx+T*.05,cy-T*.55);ctx.stroke();
+  ctx.fillStyle='#2f9a4f';for(let i=0;i<6;i++){const a=i*1.05-0.3;ctx.beginPath();ctx.ellipse(cx+T*.05+Math.cos(a)*T*.28,cy-T*.55+Math.sin(a)*T*.14,T*.32,T*.09,a,0,7);ctx.fill()}
+  ctx.fillStyle='#6b4423';ctx.beginPath();ctx.arc(cx,cy-T*.5,T*.06,0,7);ctx.arc(cx+T*.1,cy-T*.48,T*.06,0,7);ctx.fill()}
 function symT(s,cx,cy,col,sz){ctx.fillStyle=col;ctx.font=`900 ${sz||T*.36}px "Noto Sans KR",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s,cx,cy+1)}
 function obj(o,px,py,tm){
   const cx=px+T/2,cy=py+T/2,k=o.k;
@@ -230,6 +318,15 @@ function obj(o,px,py,tm){
   else if(k==='skull'){ctx.fillStyle='#8b8f96';ctx.beginPath();ctx.ellipse(cx,cy+T*.22,T*.42,T*.2,0,0,7);ctx.fill();ctx.fillStyle='#f4f1e8';ctx.beginPath();ctx.arc(cx,cy-T*.05,T*.26,0,7);ctx.fill();ctx.fillRect(cx-T*.15,cy+T*.1,T*.3,T*.14);ctx.fillStyle='#222';ctx.beginPath();ctx.arc(cx-T*.1,cy-T*.05,T*.07,0,7);ctx.arc(cx+T*.1,cy-T*.05,T*.07,0,7);ctx.fill()}
   else if(k==='ghost'){const f=Math.sin(tm/450)*T*.08;ctx.globalAlpha=.85;ctx.fillStyle='#e8f4ff';ctx.beginPath();ctx.arc(cx,cy-T*.1+f,T*.28,Math.PI,0);ctx.lineTo(cx+T*.28,cy+T*.3+f);for(let i=0;i<4;i++)ctx.lineTo(cx+T*.28-(i+.5)*T*.14,cy+T*(i%2?.3:.2)+f);ctx.lineTo(cx-T*.28,cy+T*.3+f);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle='#1d2a2c';ctx.fillRect(cx-T*.13,cy-T*.15+f,4,6);ctx.fillRect(cx+T*.07,cy-T*.15+f,4,6);ctx.fillStyle='#222';ctx.fillRect(cx-T*.3,cy-T*.42+f,T*.6,T*.1);ctx.fillRect(cx-T*.18,cy-T*.55+f,T*.36,T*.15)}
   else if(k==='chest'){const op=S.open[4];ctx.fillStyle='#9a5b22';ctx.fillRect(px+T*.12,py+T*.4,T*.76,T*.45);ctx.fillStyle=op?'#ffc83d':'#b56e2c';ctx.fillRect(px+T*.12,py+T*(op?.1:.22),T*.76,T*.2);ctx.fillStyle='#ffc83d';ctx.fillRect(cx-T*.07,py+T*.45,T*.14,T*.16)}
+  else if(k==='crate'){ctx.fillStyle='#b07a3f';ctx.fillRect(px+T*.14,py+T*.22,T*.72,T*.64);ctx.strokeStyle='#7a5226';ctx.lineWidth=3;ctx.strokeRect(px+T*.14,py+T*.22,T*.72,T*.64);ctx.beginPath();ctx.moveTo(px+T*.14,py+T*.54);ctx.lineTo(px+T*.86,py+T*.54);ctx.stroke()}
+  else if(k==='barrel'){ctx.fillStyle='#8a5a2b';ctx.beginPath();ctx.ellipse(cx,cy+T*.08,T*.3,T*.38,0,0,7);ctx.fill();ctx.fillStyle='#5a3416';ctx.fillRect(px+T*.22,cy-T*.12,T*.56,4);ctx.fillRect(px+T*.22,cy+T*.26,T*.56,4);ctx.fillStyle='#a8743f';ctx.beginPath();ctx.ellipse(cx,cy-T*.26,T*.24,T*.08,0,0,7);ctx.fill()}
+  else if(k==='boot'){ctx.fillStyle='#4a3020';ctx.fillRect(cx-T*.1,cy-T*.2,T*.2,T*.4);ctx.fillRect(cx-T*.1,cy+T*.12,T*.34,T*.14);ctx.fillStyle='#efd391';ctx.fillRect(px,cy+T*.2,T,T*.1)}
+  else if(k==='stump'){ctx.fillStyle='#7a5226';ctx.fillRect(cx-T*.22,cy-T*.05,T*.44,T*.36);ctx.fillStyle='#c79a5e';ctx.beginPath();ctx.ellipse(cx,cy-T*.05,T*.22,T*.08,0,0,7);ctx.fill();
+    [['#e53935',-.18,-.2],['#ff8a65',.12,-.25]].forEach(([c,a,b])=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx+a*T,cy+b*T,T*.11,Math.PI,0);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(cx+a*T-2,cy+b*T,4,T*.12)})}
+  else if(k==='monkey'){const b=Math.sin(tm/200)*2;ctx.fillStyle='#8d5a3b';ctx.beginPath();ctx.arc(cx,cy+b,T*.22,0,7);ctx.fill();ctx.beginPath();ctx.arc(cx-T*.2,cy-T*.08+b,T*.08,0,7);ctx.arc(cx+T*.2,cy-T*.08+b,T*.08,0,7);ctx.fill();
+    ctx.fillStyle='#e8c39e';ctx.beginPath();ctx.arc(cx,cy+T*.04+b,T*.13,0,7);ctx.fill();ctx.fillStyle='#000';ctx.fillRect(cx-T*.07,cy-T*.04+b,3,3);ctx.fillRect(cx+T*.04,cy-T*.04+b,3,3);ctx.fillStyle='#ffd54f';ctx.fillRect(cx+T*.18,cy+T*.12+b,T*.2,T*.07)}
+  else if(k==='torch'){ctx.fillStyle='#6b4423';ctx.save();ctx.translate(cx,cy);ctx.rotate(.8);ctx.fillRect(-3,-T*.3,6,T*.6);ctx.fillStyle='#333';ctx.fillRect(-5,-T*.36,10,T*.12);ctx.restore()}
+  else if(k==='rockskull'){ctx.fillStyle='#9a9ea5';ctx.beginPath();ctx.ellipse(cx,cy+T*.05,T*.38,T*.34,0,0,7);ctx.fill();ctx.fillStyle='#55595f';ctx.beginPath();ctx.arc(cx-T*.12,cy-T*.02,T*.08,0,7);ctx.arc(cx+T*.12,cy-T*.02,T*.08,0,7);ctx.fill();ctx.fillRect(cx-T*.1,cy+T*.18,T*.2,T*.05)}
   else if(k==='gate1'){ctx.fillStyle='#6b4423';ctx.fillRect(px,py+T*.05,T*.14,T*.9);ctx.fillRect(px+T*.86,py+T*.05,T*.14,T*.9);ctx.fillStyle='#a0703c';for(let i=0;i<4;i++)ctx.fillRect(px+T*.16+i*T*.18,py+T*.15,T*.14,T*.8);ctx.fillStyle='#2e7d4a';ctx.fillRect(px,py+T*.3,T,4);ctx.fillStyle='#d4af37';ctx.fillRect(cx-5,cy,10,10)}
   else if(k==='gate2'){ctx.fillStyle='#2c252a';ctx.fillRect(px,py,T,T);ctx.fillStyle='#7d858c';for(let i=0;i<5;i++)ctx.fillRect(px+T*.08+i*T*.2,py,T*.07,T);ctx.fillRect(px,py+T*.3,T,T*.07);ctx.fillStyle='#d4af37';ctx.fillRect(cx-5,cy,10,10)}
   else if(k==='gate3'){ctx.fillStyle='#6f6a66';ctx.fillRect(px,py,T,T);ctx.strokeStyle='#4f4a46';ctx.lineWidth=2;ctx.strokeRect(px+3,py+3,T-6,T-6);ctx.strokeStyle='rgba(120,220,255,.7)';ctx.beginPath();ctx.arc(cx,cy,T*.2,0,7);ctx.stroke()}
@@ -245,23 +342,33 @@ function player(px,py,tm,mv){
 let last=0;
 function frame(tm){
   const dt=Math.min(50,tm-last);last=tm;
-  if(P.t<1){P.t=Math.min(1,P.t+dt/140);if(P.t>=1){S.px=P.x;S.py=P.y;save();net.pos(false)}}
-  if(P.t>=1&&held&&!modal)tryMove(held);
+  if(P.t<1){P.t=Math.min(1,P.t+dt/140);if(P.t>=1){S.px=P.x;S.py=P.y;onStep();save();net.pos(false)}}
+  if(P.t>=1&&!modal){
+    if(held){P.path=null;P.arrive=null;tryMove(held)}
+    else if(P.path&&P.path.length){const d=P.path.shift(),bx=P.x,by=P.y;tryMove(d);if(P.x===bx&&P.y===by){P.path=null;P.arrive=null}}
+    else if(P.path){P.path=null;const o=P.arrive;P.arrive=null;if(o&&Math.abs(o.x-P.x)+Math.abs(o.y-P.y)===1&&objAt(o.x,o.y)){face(o);inspect(o)}}}
   const rx=P.fx+(P.x-P.fx)*P.t,ry=P.fy+(P.y-P.fy)*P.t;
   let camX=rx*T+T/2-CW/2,camY=ry*T+T/2-CH/2;camX=Math.max(0,Math.min(W*T-CW,camX));camY=Math.max(0,Math.min(H*T-CH,camY));
   ctx.fillStyle='#1d8aa0';ctx.fillRect(0,0,CW,CH);
   const x0=Math.floor(camX/T),y0=Math.floor(camY/T),x1=Math.min(W-1,x0+Math.ceil(CW/T)+1),y1=Math.min(H-1,y0+Math.ceil(CH/T)+1);
-  for(let y=Math.max(0,y0);y<=y1;y++)for(let x=Math.max(0,x0);x<=x1;x++){tile(g[y][x],x,y,x*T-camX,y*T-camY,tm)}
+  for(let y=Math.max(0,y0);y<=y1;y++)for(let x=Math.max(0,x0);x<=x1;x++){ground(g[y][x],x,y,x*T-camX,y*T-camY,tm)}
+  CAM.x=camX;CAM.y=camY;
+  COINS.forEach(([x,y],i)=>{if(S.coins.includes(i))return;const px=x*T-camX,py=y*T-camY;if(px<-T||py<-T||px>CW||py>CH)return;
+    const w=Math.abs(Math.cos(tm/300+i))*T*.22+2,bob=Math.sin(tm/400+i)*3;ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(px+T/2,py+T*.8,T*.16,T*.05,0,0,7);ctx.fill();
+    ctx.fillStyle='#ffc83d';ctx.strokeStyle='#b8860b';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(px+T/2,py+T*.45+bob,w,T*.22,0,0,7);ctx.fill();ctx.stroke()});
+  if(false){const a=1-(tm-TAP.t)/700;ctx.strokeStyle=`rgba(255,255,255,${a})`;ctx.lineWidth=3;ctx.beginPath();ctx.arc(TAP.x*T-camX+T/2,TAP.y*T-camY+T/2,T*(.2+.3*(1-a)),0,7);ctx.stroke()}
   for(const k in others){const q=others[k],f=Math.min(1,dt/110);q.rx+=(q.x-q.rx)*f;q.ry+=(q.y-q.ry)*f;if(Math.abs(q.x-q.rx)>3||Math.abs(q.y-q.ry)>3){q.rx=q.x;q.ry=q.y}}
-  for(let y=Math.max(0,y0-1);y<=y1;y++){
+  for(let y=Math.max(0,y0);y<=Math.min(H-1,y1+1);y++){
+    for(let x=Math.max(0,x0);x<=x1;x++){const c=g[y][x];if(TALL.has(c))tall(c,x,y,x*T-camX,y*T-camY,tm)}
     for(let x=Math.max(0,x0);x<=x1;x++){const o=OM[x+','+y];if(o&&!(o.gate!=null&&o.gate<4&&S.open[o.gate]))obj(o,x*T-camX,y*T-camY,tm)}
     const nOpen=S.open.filter(Boolean).length;
     for(const k in others){const q=others[k];if(Math.round(q.ry)!==y||zoneOf(q.x,q.y)>nOpen)continue;
-      const qx=q.rx*T-camX,qy=q.ry*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawSprite(q.s,qx,qy);label(q.n,qx+T/2,qy-3)}
-    if(y===Math.round(ry)){drawSprite(S.sprite||DEFA,rx*T-camX,ry*T-camY+(P.t<1?Math.sin(tm/60)*1.5:0));label(S.team,rx*T-camX+T/2,ry*T-camY-3)}}
+      const qx=q.rx*T-camX,qy=q.ry*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawSprite(q.s,qx,qy);label(q.n,qx+T/2,qy-3);if(q.es&&tm-q.es<2500)bubble(EMO[q.e],qx+T/2,qy-T*.15,tm-q.es)}
+    if(y===Math.round(ry)){drawSprite(S.sprite||DEFA,rx*T-camX,ry*T-camY+(P.t<1?Math.sin(tm/60)*1.5:0));label(S.team,rx*T-camX+T/2,ry*T-camY-3);if(MYE&&tm-MYE.t<2500)bubble(EMO[MYE.e],rx*T-camX+T/2,ry*T-camY-T*.45,tm-MYE.t)}}
   if(inCave(P.x,P.y)){const sx=rx*T-camX+T/2,sy=ry*T-camY+T/2,gr=ctx.createRadialGradient(sx,sy,T*1.3,sx,sy,T*3.6);
     gr.addColorStop(0,'rgba(6,6,14,0)');gr.addColorStop(1,'rgba(6,6,14,.96)');ctx.fillStyle=gr;ctx.fillRect(0,0,CW,CH);
     O.forEach(o=>{if(o.k==='crystal'){ctx.globalAlpha=.35+.15*Math.sin(tm/400+o.x);ctx.fillStyle=o.c;ctx.beginPath();ctx.arc(o.x*T-camX+T/2,o.y*T-camY+T/2,T*.12,0,7);ctx.fill();ctx.globalAlpha=1}})}
+  fx(dt,tm);
   const n=near();
   if(n&&!modal){promptB.classList.add('act');promptB.textContent='조사하기: '+n.t}
   else{promptB.classList.remove('act');promptB.textContent=inCave(P.x,P.y)?'어두운 동굴이다… 주변을 잘 살펴보자':'섬을 돌아다니며 단서를 찾아보세요'}
@@ -271,7 +378,7 @@ function frame(tm){
 const gatesEl=document.getElementById('gates'),timerEl=document.getElementById('timer');
 const fmt=ms=>{const s=Math.max(0,Math.floor(ms/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 const total=()=>S.start?((S.end||Date.now())-S.start+S.pen*1000):0;
-function hud(){gatesEl.textContent='문 '+S.open.filter(Boolean).length+'/5';timerEl.textContent=fmt(total())}
+function hud(){gatesEl.textContent='문 '+S.open.filter(Boolean).length+'/5';timerEl.textContent=fmt(total());document.getElementById('coins').textContent='🪙 '+S.coins.length+'/'+COINS.length}
 setInterval(hud,500);hud();
 
 function show(html){dlg.innerHTML=html;ov.classList.add('on');modal=true;held=null;
@@ -279,7 +386,7 @@ function show(html){dlg.innerHTML=html;ov.classList.add('on');modal=true;held=nu
 function close(){ov.classList.remove('on');modal=false;dlg.innerHTML='';game.focus()}
 function inspect(o){
   if(o.gate!=null)return lock(o);
-  if(!S.seen.includes(o.id)){S.seen.push(o.id);save()}
+  if(o.junk)sfx('pop');else if(!S.seen.includes(o.id)){S.seen.push(o.id);save();sfx('find')}else sfx('pop');
   show(`<h2>${o.s?`<span class="sym">${o.s}</span>`:''}${o.t}</h2>${tex(o.h)}
     ${o.p?`<input id="memo" placeholder="수첩에 적기" value="${esc(S.memo[o.id]||'')}">`:''}
     <div class="btns"><button id="ok">닫기</button></div>`);
@@ -288,6 +395,7 @@ function inspect(o){
 }
 function lock(o){
   const i=o.gate;
+  sfx('pop');
   if(S.open[i])return show(`<h2>${o.t}</h2><p>이미 열려 있다.</p><div class="btns"><button id="ok">닫기</button></div>`),dlg.querySelector('#ok').addEventListener('click',close);
   show(`<h2>${o.t}</h2>${o.h}
     <form id="lf" class="btns"><input class="code" id="ci" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="비밀번호"><button class="hot" type="submit">열기</button></form>
@@ -295,14 +403,14 @@ function lock(o){
     <div class="btns"><button type="button" class="alt" id="hb">${S.hint[i]?'힌트 다시 보기':'힌트 보기 (+1분)'}</button><button type="button" class="alt" id="cb">닫기</button></div>`);
   const lm=dlg.querySelector('#lm');
   dlg.querySelector('#cb').addEventListener('click',close);
-  dlg.querySelector('#hb').addEventListener('click',()=>{if(!S.hint[i]){S.hint[i]=1;S.pen+=60;save();hud();net.hint()}lm.className='msg hint';lm.textContent='힌트: '+o.hint;dlg.querySelector('#hb').textContent='힌트 다시 보기'});
+  dlg.querySelector('#hb').addEventListener('click',()=>{if(!S.hint[i]){S.hint[i]=1;S.pen+=60;save();hud();net.hint()}sfx('hint');lm.className='msg hint';lm.textContent='힌트: '+o.hint;dlg.querySelector('#hb').textContent='힌트 다시 보기'});
   dlg.querySelector('#lf').addEventListener('submit',e=>{e.preventDefault();
     const v=dlg.querySelector('#ci').value.replace(/\s/g,'');if(!v)return;
-    sha(o.id+v).then(hh=>{if(hh===o.hash){S.open[i]=1;if(i===4)S.end=Date.now();save();hud();net.gate(i);
+    sha(o.id+v).then(hh=>{if(hh===o.hash){S.open[i]=1;if(i===4)S.end=Date.now();save();hud();net.gate(i);FLASH=1;confetti(i===4?160:70);sfx(i===4?'win':'open');
       if(i===4)return win();
       show(`<h2>철컥! ${o.t}이 열렸다</h2><p>${['정글로 들어갈 수 있다. 정글 깊은 곳에 고대 석판들이 있다는데…','동굴 안은 몹시 어둡다. 빛나는 것을 찾아보자.','바깥에서 파도 소리가 들린다. 해골 바위가 보인다!','숨겨진 신전이 나타났다! 해적왕의 보물은 이 안에 있다.'][i]}</p><div class="btns"><button id="ok">계속</button></div>`);
       dlg.querySelector('#ok').addEventListener('click',close)}
-    else{S.wrong++;S.pen+=30;save();hud();net.wrong();lm.className='msg no';lm.textContent='철컥… 열리지 않는다. (+30초)';dlg.classList.remove('shake');void dlg.offsetWidth;dlg.classList.add('shake')}})});
+    else{S.wrong++;S.pen+=30;save();hud();net.wrong();sfx('wrong');lm.className='msg no';lm.textContent='철컥… 열리지 않는다. (+30초)';dlg.classList.remove('shake');void dlg.offsetWidth;dlg.classList.add('shake')}})});
 }
 function notebook(){
   const list=O.filter(o=>S.seen.includes(o.id));
@@ -312,7 +420,11 @@ function notebook(){
   dlg.querySelector('#ok').addEventListener('click',close);
 }
 function win(){
+  stopBgm();const hn=S.hint.filter(Boolean).length,cn=S.coins.length;
+  const ttl=hn===0&&S.wrong===0?'전설의 해적왕':hn===0&&S.wrong<=2?'명탐정 선장':cn===COINS.length?'황금 수집가':S.wrong<=5?'용감한 항해사':'끈질긴 모험가';
   show(`<h2>보물을 찾았다!</h2><p><b>${esc(S.team)}</b> 해적단, 탈출 성공!</p>
+    <p class="big" style="font-size:20px">칭호: <b style="color:var(--coral)">${ttl}</b></p>
+    <p>모은 금화 🪙 ${cn} / ${COINS.length}${cn===COINS.length?' (모두 찾았다!)':''}</p>
     <div class="big" style="font:400 48px 'Black Han Sans',sans-serif;color:var(--coral)">${fmt(total())}</div>
     <p>틀린 시도 ${S.wrong}번 (+${S.wrong*30}초) · 힌트 ${S.hint.filter(Boolean).length}번 (+${S.hint.filter(Boolean).length}분)</p>
     <p class="msg hint">완료 ${new Date(S.end).toLocaleString('ko-KR')} — 이 화면을 캡처해서 제출하세요.</p>
@@ -369,9 +481,9 @@ function drawSprite(sp,px,py){const c=spriteCanvas(sp),big=c.width===16;
   ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(px+T/2,py+T*.93,T*.26,T*.07,0,0,7);ctx.fill();
   ctx.imageSmoothingEnabled=false;const z=big?T*.94:T*.84;ctx.drawImage(c,px+(T-z)/2,py+T*(big?-.02:.04),z,z)}
 function label(n,cx,y){if(!n)return;ctx.font='700 12px "Noto Sans KR",sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.75)';ctx.strokeText(n,cx,y);ctx.fillStyle='#fff';ctx.fillText(n,cx,y)}
-const zoneOf=(x,y)=>x>=17?(y>=22?4:y>=13?3:2):(y<=12?1:0);
+const zoneOf=(x,y)=>x<=31?(y<=27?1:0):(y<=20?2:y<=31?3:4);
 
-let net={on:false,gate(){},wrong(){},hint(){},pos(){}},others={},ROOM='';
+let net={on:false,gate(){},wrong(){},hint(){},pos(){},emote(){}},others={},ROOM='';
 async function connect(room,name){
   try{
     const {firebaseConfig:c}=await import('./firebase-config.js');
@@ -391,12 +503,14 @@ async function connect(room,name){
     const onEl=document.getElementById('online');onEl.hidden=false;
     RD.onValue(RD.ref(db,'presence/'+room),snap=>{const v=snap.val()||{},nx={};let n=0;
       for(const k in v){n++;if(k===uid)continue;const o=v[k];if(!o||typeof o!=='object')continue;const p=others[k],x=+o.x||0,y=+o.y||0;
-        nx[k]={x,y,n:'',s:typeof o.s==='string'&&SPR.test(o.s)?o.s:DEFA,rx:p?p.rx:x,ry:p?p.ry:y}}
+        const e=(+o.e|0)%4,et=+o.et||0;nx[k]={x,y,n:'',e,et,es:p&&et&&p.et!==et?performance.now():(p?p.es:0),s:typeof o.s==='string'&&SPR.test(o.s)?o.s:DEFA,rx:p?p.rx:x,ry:p?p.ry:y};const z=zoneOf(x,y);if(z>RIV.cur)RIV.cur=z}
+      if(!RIV.init){RIV.init=1;RIV.max=RIV.cur}else if(RIV.cur>RIV.max){RIV.max=RIV.cur;toast('다른 해적이 '+ZN[RIV.max]+'에 도착했다!')}RIV.cur=0;
       others=nx;onEl.textContent='접속 '+n});
     net={on:true,
       gate:i=>FS.updateDoc(pref,{['g'+i]:FS.serverTimestamp()}).catch(()=>{}),
       wrong:()=>FS.updateDoc(pref,{wrong:FS.increment(1)}).catch(()=>{}),
       hint:()=>FS.updateDoc(pref,{hints:FS.increment(1)}).catch(()=>{}),
+      emote:e=>RD.update(me,{e,et:Date.now()}).catch(()=>{}),
       pos:full=>{const d={x:P.x,y:P.y,t:RD.serverTimestamp()};if(full){d.s=S.sprite||DEFA}(full?RD.set(me,d):RD.update(me,d)).catch(()=>{})}};
     return{data:ps.exists()?ps.data():{}};
   }catch(e){console.error(e);return{err:'net',msg:String(e&&e.message||e)}}
@@ -412,16 +526,16 @@ function join(){
   dlg.querySelector('#tch').addEventListener('click',teacherLogin);
   dlg.querySelector('#jf').addEventListener('submit',async e=>{e.preventDefault();
     const room=dlg.querySelector('#rc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),name=dlg.querySelector('#tn').value.trim(),jm=dlg.querySelector('#jm'),jb=dlg.querySelector('#jb');
-    if(!room||!name)return;jb.disabled=true;jm.className='msg hint';jm.textContent='섬에 접속하는 중…';
+    if(!room||!name)return;auInit();jb.disabled=true;jm.className='msg hint';jm.textContent='섬에 접속하는 중…';
     const r=await connect(room,name);
     if(r.err==='room'){jm.className='msg no';jm.textContent='그런 방이 없어요. 방 코드를 다시 확인하세요.';jb.disabled=false;return}
     if(r.err==='net'){jm.className='msg no';jm.textContent='접속하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.';jb.disabled=false;return}
-    ROOM=room;KEY='treasure-v4-'+room;
+    ROOM=room;KEY='treasure-v5-'+room;
     try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&v.open)S=Object.assign(fresh(),v);localStorage.setItem('treasure-name',name)}catch(x){}
     S.team=name;
     if(r.data)for(let i=0;i<5;i++)if(r.data['g'+i])S.open[i]=1;
     P.x=P.fx=S.px;P.y=P.fy=S.py;P.t=1;
-    const go=()=>{if(!S.start)S.start=Date.now();S.started=1;save();hud();close();net.pos(true);if(S.open[4]&&S.end)win()};
+    const go=()=>{if(!S.start)S.start=Date.now();S.started=1;save();hud();close();net.pos(true);onStep();if(S.open[4]&&S.end)win()};
     if(r.err==='config'){alertSolo(()=>S.sprite?go():editor(go))}else S.sprite?go():editor(go);
   });
 }
@@ -472,7 +586,78 @@ function editor(done){
   upd();
 }
 
-const act=()=>{if(modal)return;const n=near();if(n)inspect(n)};
+// ===== 금화, 구역, 효과 =====
+function onStep(){
+  const ci=COINS.findIndex(([x,y])=>x===P.x&&y===P.y);
+  if(ci>=0&&!S.coins.includes(ci)){S.coins.push(ci);sfx('coin');hud();toast('🪙 금화 '+S.coins.length+'/'+COINS.length+(S.coins.length===COINS.length?' 전부 모았다!':''))}
+  const z=zoneOf(P.x,P.y);
+  if(z!==curZone){curZone=z;playZone(z);if(!S.zs.includes(z)){S.zs.push(z);BAN={t:performance.now(),z};sfx('zone')}}
+}
+function face(o){const dx=o.x-P.x,dy=o.y-P.y;P.dir=dx>0?'right':dx<0?'left':dy>0?'down':'up'}
+function findPath(tx,ty,adj){
+  const k=(x,y)=>y*W+x,prev=new Map([[k(P.x,P.y),null]]),q=[[P.x,P.y]];let end=null;
+  const goal=(x,y)=>adj?Math.abs(x-tx)+Math.abs(y-ty)===1:x===tx&&y===ty;
+  if(goal(P.x,P.y))return[];
+  while(q.length){const[x,y]=q.shift();for(const d in D){const nx=x+D[d][0],ny=y+D[d][1],nk=k(nx,ny);if(prev.has(nk)||blocked(nx,ny))continue;prev.set(nk,[k(x,y),d]);if(goal(nx,ny)){end=nk;q.length=0;break}q.push([nx,ny])}}
+  if(end==null)return null;const path=[];let c=end;while(prev.get(c)){const[p,d]=prev.get(c);path.unshift(d);c=p}return path}
+cv.addEventListener('pointerdown',()=>auResume());
+let toastT=0;const toastEl=document.getElementById('toast');
+function toast(t){toastEl.textContent=t;toastEl.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>toastEl.classList.remove('on'),2600)}
+function bubble(em,cx,y,age){const s=age<150?age/150:1,a=age>2100?(2500-age)/400:1;ctx.globalAlpha=Math.max(0,a);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(cx,y-T*.35,T*.34*s,T*.28*s,0,0,7);ctx.fill();ctx.beginPath();ctx.moveTo(cx-4,y-T*.1);ctx.lineTo(cx+4,y-T*.1);ctx.lineTo(cx,y);ctx.fill();
+  ctx.font=`${Math.round(T*.34*s)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(em,cx,y-T*.33);ctx.globalAlpha=1}
+function confetti(n){const C=['#ff6b4a','#ffc83d','#3ddc84','#4d8dff','#b04dff','#ffffff'];for(let i=0;i<n;i++)PART.push({x:CW/2+(Math.random()-.5)*CW*.4,y:CH*.35,vx:(Math.random()-.5)*9,vy:-Math.random()*9-3,c:C[i%6],r:Math.random()*6,life:1})}
+function fx(dt,tm){
+  if(PART.length){PART.forEach(p=>{p.vy+=.35*dt/16;p.x+=p.vx*dt/16;p.y+=p.vy*dt/16;p.r+=.1;p.life-=dt/2600;ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillRect(-4,-2.5,8,5);ctx.restore()});ctx.globalAlpha=1;PART=PART.filter(p=>p.life>0&&p.y<CH+20)}
+  if(FLASH>0){ctx.fillStyle=`rgba(255,240,200,${FLASH*.7})`;ctx.fillRect(0,0,CW,CH);FLASH=Math.max(0,FLASH-dt/500)}
+  if(BAN){const a=(tm-BAN.t)/2600;if(a>1)BAN=null;else{const al=a<.15?a/.15:a>.8?(1-a)/.2:1;ctx.globalAlpha=al;
+    ctx.fillStyle='rgba(10,20,25,.7)';ctx.fillRect(0,CH*.18,CW,T*1.5);ctx.font=`400 ${Math.round(T*.75)}px "Black Han Sans",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffc83d';
+    ctx.fillText(ZN[BAN.z],CW/2,CH*.18+T*.75);ctx.globalAlpha=1}}
+}
+document.querySelectorAll('#emo button').forEach(b=>b.addEventListener('click',()=>{auResume();if(!S.started||modal)return;const e=+b.dataset.e,now=performance.now();if(MYE&&now-MYE.t<900)return;MYE={e,t:now};net.emote(e);sfx('emote')}));
+
+// ===== 소리 (8비트, 파일 없이 만들어요) =====
+const AU={ctx:null,mode:0,timer:null,zone:-1,noise:null};
+try{AU.mode=+localStorage.getItem('tr-snd')||0}catch(e){}
+const sndB=document.getElementById('sndB');const sndIcon=()=>{sndB.textContent=['🔊','🔉','🔇'][AU.mode];sndB.title=['소리 모두 켬','효과음만','소리 끔'][AU.mode]};sndIcon();
+sndB.addEventListener('click',()=>{auInit();AU.mode=(AU.mode+1)%3;try{localStorage.setItem('tr-snd',AU.mode)}catch(e){}sndIcon();toast(['🔊 배경음악과 효과음을 켰어요','🔉 효과음만 켰어요','🔇 소리를 껐어요'][AU.mode]);
+  if(AU.mode===0){const z=AU.zone;AU.zone=-1;if(z>=0)playZone(z)}else stopBgm()});
+function auInit(){if(AU.ctx){auResume();return}try{const C=window.AudioContext||window.webkitAudioContext;AU.ctx=new C();AU.out=AU.ctx.createGain();AU.out.gain.value=.55;AU.out.connect(AU.ctx.destination);
+  AU.bg=AU.ctx.createGain();AU.bg.gain.value=.6;AU.bg.connect(AU.out);
+  const n=AU.ctx.createBuffer(1,AU.ctx.sampleRate*.2,AU.ctx.sampleRate),d=n.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;AU.noise=n}catch(e){AU.ctx=null}}
+function auResume(){if(AU.ctx&&AU.ctx.state==='suspended')AU.ctx.resume().catch(()=>{})}
+document.addEventListener('visibilitychange',()=>{if(!AU.ctx)return;if(document.hidden)AU.ctx.suspend().catch(()=>{});else AU.ctx.resume().catch(()=>{})});
+function tone(f,t0,d,type,vol,dest){const c=AU.ctx,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(f,t0);
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(vol,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g);g.connect(dest||AU.out);o.start(t0);o.stop(t0+d+.03)}
+function hit(t0,d,vol){const c=AU.ctx,s=c.createBufferSource(),g=c.createGain();s.buffer=AU.noise;g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+d);s.connect(g);g.connect(AU.bg);s.start(t0);s.stop(t0+d+.02)}
+const SFX={pop:[[660,0,.07,'square',.1],[990,.05,.08,'square',.08]],
+  find:[[784,0,.1,'triangle',.2],[988,.08,.1,'triangle',.2],[1319,.16,.2,'triangle',.2]],
+  coin:[[988,0,.07,'square',.12],[1319,.06,.22,'square',.12]],
+  wrong:[[196,0,.18,'sawtooth',.14],[147,.16,.3,'sawtooth',.14]],
+  open:[[523,0,.12,'square',.13],[659,.1,.12,'square',.13],[784,.2,.12,'square',.13],[1047,.3,.4,'square',.15]],
+  win:[[523,0,.14,'square',.14],[659,.13,.14,'square',.14],[784,.26,.14,'square',.14],[1047,.39,.25,'square',.15],[784,.66,.14,'square',.14],[1047,.8,.6,'square',.16],[262,0,.9,'triangle',.18],[392,.39,.9,'triangle',.16]],
+  hint:[[880,0,.12,'sine',.16],[1175,.1,.2,'sine',.14]],
+  emote:[[1200,0,.06,'square',.06],[1500,.05,.06,'square',.05]],
+  zone:[[392,0,.16,'triangle',.16],[523,.13,.16,'triangle',.16],[659,.26,.35,'triangle',.16]]};
+function sfx(n){if(!AU.ctx||AU.mode===2)return;auResume();const t=AU.ctx.currentTime+.01;(SFX[n]||[]).forEach(([f,o,d,ty,v])=>tone(f,t+o,d,ty,v))}
+const NT={C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11};
+const pn=s=>s.split(' ').map(t=>{const m=t.match(/^([A-G]#?)(\d)$/);return m?12*(+m[2]+1)+NT[m[1]]:0});
+const mf=n=>440*Math.pow(2,(n-69)/12);
+const SONGS=[
+  {bpm:132,w:'square',dr:1,m:pn('C5 - E5 G5 A5 G5 E5 - D5 - F5 A5 G5 - E5 - C5 - E5 G5 A5 - C6 A5 G5 E5 D5 E5 C5 - - -'),b:pn('C3 - G3 - A2 - E3 - F2 - C3 - G2 - B2 - C3 - G3 - A2 - E3 - F2 - G2 - C3 - - -')},
+  {bpm:116,w:'triangle',dr:2,m:pn('A4 - C5 - E5 D5 C5 - A4 - G4 - A4 - - - C5 - E5 - G5 E5 D5 - C5 - B4 - A4 - - -'),b:pn('A2 - A2 E3 A2 - A2 E3 F2 - F2 C3 G2 - G2 D3')},
+  {bpm:76,w:'sine',dr:0,m:pn('E4 - - - G4 - - - F#4 - - - - - - - B3 - - - D4 - - - C4 - - - - - - -'),b:pn('E2 - - - - - - - - - - - - - - - C2 - - - - - - - B1 - - - - - - -')},
+  {bpm:150,w:'square',dr:2,m:pn('D5 - D5 F5 A5 - G5 F5 E5 - C5 - D5 - - - D5 - D5 F5 A5 - C6 A5 A#5 - A5 - G5 - - -'),b:pn('D3 D3 D3 D3 A2 A2 A2 A2 A#2 A#2 A#2 A#2 A2 A2 C3 C#3')},
+  {bpm:96,w:'triangle',dr:0,m:pn('E5 - B4 - G5 - F#5 - E5 - D5 - B4 - - - G5 - A5 - B5 - A5 - G5 - F#5 - E5 - - -'),b:pn('E3 - - - C3 - - - D3 - - - B2 - - -')}];
+function stopBgm(){clearInterval(AU.timer);AU.timer=null}
+function playZone(z){if(AU.zone===z&&AU.timer)return;stopBgm();AU.zone=z;if(!AU.ctx||AU.mode!==0||(S.open[4]&&S.end))return;
+  const s=SONGS[z],dur=60/s.bpm/2;let step=0,next=AU.ctx.currentTime+.1;
+  AU.timer=setInterval(()=>{if(!AU.ctx||AU.ctx.state!=='running')return;if(next<AU.ctx.currentTime)next=AU.ctx.currentTime+.05;
+    while(next<AU.ctx.currentTime+.25){const mn=s.m[step%s.m.length],bn=s.b[step%s.b.length];
+      if(mn)tone(mf(mn),next,dur*.9,s.w,s.w==='sine'?.09:.045,AU.bg);if(bn)tone(mf(bn),next,dur*1.7,'triangle',.08,AU.bg);
+      if(s.dr&&step%4===0)hit(next,.06,.12);if(s.dr===2&&step%4===2)hit(next,.03,.06);next+=dur;step++}},60)}
+
+const act=()=>{auResume();if(modal)return;const n=near();if(n)inspect(n)};
 promptB.addEventListener('click',act);document.getElementById('actB').addEventListener('click',act);
 document.getElementById('noteB').addEventListener('click',()=>{if(!modal&&S.started)notebook()});
 document.getElementById('drawB').addEventListener('click',()=>{if(!modal&&S.started)editor(()=>{save();close();net.pos(true)})});
