@@ -36,9 +36,13 @@ td.t small{color:var(--mute);display:block}
 </style>
 </head>
 <body>
-<header><h1>보물섬 탈출 · 교사 화면</h1></header>
+<header class="row" style="justify-content:space-between"><h1>보물섬 탈출 · 교사 화면</h1><a href="./" style="color:#fff">학생 화면으로</a></header>
 <main>
-  <section class="card" id="setup">
+  <section class="card" id="gate" hidden>
+    <form id="gf" class="row"><input id="gp" type="password" inputmode="numeric" placeholder="선생님 비밀번호" autocomplete="off"><button class="hot" type="submit">들어가기</button></form>
+    <p class="msg err" id="gm"></p>
+  </section>
+  <section class="card" id="setup" hidden>
     <div class="row">
       <button class="hot" id="newB">새 방 만들기</button>
       <input id="openI" placeholder="기존 방 코드" maxlength="8" style="text-transform:uppercase;width:150px">
@@ -53,7 +57,7 @@ td.t small{color:var(--mute);display:block}
       <div class="stats"><div><b id="sN">0</b>입장</div><div><b id="sO">0</b>지금 접속</div><div><b id="sF">0</b>탈출 완료</div></div>
     </div>
     <p class="link">학생 링크: <span id="linkT"></span></p>
-    <div class="row"><button class="alt" id="copyL">학생 링크 복사</button><button class="alt" id="copyC">기록 복사 (엑셀 붙여넣기용)</button></div>
+    <div class="row"><button class="alt" id="copyL">학생 링크 복사</button><button class="alt" id="delB" style="color:#b3261e;border-color:#b3261e">🗑 방 삭제</button><button class="alt" id="copyC">기록 복사 (엑셀 붙여넣기용)</button></div>
   </section>
   <section class="card" id="tableC" hidden>
     <div class="scroll"><table>
@@ -65,6 +69,12 @@ td.t small{color:var(--mute);display:block}
 </main>
 <script type="module">
 const $=id=>document.getElementById(id);
+const SALT='bosul-island-2026|',PH='1eaf5fccf307afde1b7da47c1d29644bb66037c5b685ec56823735b2e9da0355';
+const sha=async v=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(SALT+v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+let okT=false;try{okT=sessionStorage.getItem('tr-teacher')==='1'}catch(e){}
+if(!okT){$('gate').hidden=false;$('gp').focus();await new Promise(res=>$('gf').addEventListener('submit',async e=>{e.preventDefault();
+  if(await sha('teacher'+$('gp').value.trim())===PH){try{sessionStorage.setItem('tr-teacher','1')}catch(x){}$('gate').hidden=true;res()}else $('gm').textContent='비밀번호가 달라요.'}))}
+$('setup').hidden=false;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const status=(t,err)=>{$('status').textContent=t;$('status').className='msg'+(err?' err':'')};
 let FS,RD,fs,db,uid,unsub=[],rows=[],online={},room='';
@@ -106,6 +116,15 @@ async function openRoom(c){if(!fs)return;
   const pr=RD.ref(db,'presence/'+c);
   unsub.push(RD.onValue(pr,s=>{online=s.val()||{};render()}));
 }
+$('delB').addEventListener('click',async()=>{if(!room||!fs)return;
+  if(!confirm('방 '+room+' 과 학생 기록을 모두 지울까요? 되돌릴 수 없어요.'))return;
+  try{const ps=await FS.getDocs(FS.collection(fs,'escapeRooms',room,'players'));
+    await Promise.all(ps.docs.map(d=>FS.deleteDoc(d.ref)));
+    await FS.deleteDoc(FS.doc(fs,'escapeRooms',room));
+    unsub.forEach(f=>f());unsub=[];
+    try{localStorage.setItem('treasure-rooms',JSON.stringify(recent().filter(x=>x!==room)))}catch(e){}
+    showRecent();$('roomC').hidden=true;$('tableC').hidden=true;status('방 '+room+' 을 지웠어요.');room='';rows=[];
+  }catch(e){status('지우지 못했어요: '+e.message+' (이 방을 만든 컴퓨터에서만 지울 수 있어요)',true)}});
 const tm=ts=>ts&&ts.toDate?ts.toDate():null;
 const hms=d=>d?d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'';
 const dur=(a,b)=>{if(!a||!b)return'';const s=Math.max(0,Math.round((b-a)/1000));return '+'+Math.floor(s/60)+'분 '+String(s%60).padStart(2,'0')+'초'};

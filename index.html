@@ -408,7 +408,8 @@ function join(){
     <p class="msg hint">틀린 비밀번호는 +30초, 힌트는 +1분이 더해져요.</p>
     <form id="jf"><div class="btns"><input id="rc" placeholder="방 코드" maxlength="8" autocomplete="off" style="flex:1 1 120px;text-transform:uppercase" value="${esc(q.get('room')||'')}" required>
     <input id="tn" placeholder="이름 또는 모둠" maxlength="16" style="flex:2 1 160px" value="${esc(lastName)}" required></div>
-    <div class="btns"><button class="hot" type="submit" id="jb">입장하기</button></div></form><div class="msg no" id="jm" aria-live="polite"></div>`);
+    <div class="btns"><button class="hot" type="submit" id="jb">입장하기</button><button type="button" class="alt" id="tch">🔒 선생님</button></div></form><div class="msg no" id="jm" aria-live="polite"></div>`);
+  dlg.querySelector('#tch').addEventListener('click',teacherLogin);
   dlg.querySelector('#jf').addEventListener('submit',async e=>{e.preventDefault();
     const room=dlg.querySelector('#rc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),name=dlg.querySelector('#tn').value.trim(),jm=dlg.querySelector('#jm'),jb=dlg.querySelector('#jb');
     if(!room||!name)return;jb.disabled=true;jm.className='msg hint';jm.textContent='섬에 접속하는 중…';
@@ -423,6 +424,14 @@ function join(){
     const go=()=>{if(!S.start)S.start=Date.now();S.started=1;save();hud();close();net.pos(true);if(S.open[4]&&S.end)win()};
     if(r.err==='config'){alertSolo(()=>S.sprite?go():editor(go))}else S.sprite?go():editor(go);
   });
+}
+function teacherLogin(){
+  show(`<h2>🔒 선생님</h2><form id="tf" class="btns"><input id="tp" type="password" inputmode="numeric" placeholder="비밀번호" autocomplete="off" style="flex:1 1 140px"><button class="hot" type="submit">들어가기</button></form>
+    <div class="msg no" id="tm" aria-live="polite"></div><div class="btns"><button type="button" class="alt" id="tb">돌아가기</button></div>`);
+  dlg.querySelector('#tb').addEventListener('click',join);
+  dlg.querySelector('#tf').addEventListener('submit',async e=>{e.preventDefault();
+    if(await sha('teacher'+dlg.querySelector('#tp').value.trim())==='1eaf5fccf307afde1b7da47c1d29644bb66037c5b685ec56823735b2e9da0355'){try{sessionStorage.setItem('tr-teacher','1')}catch(x){}location.href='teacher.html'}
+    else dlg.querySelector('#tm').textContent='비밀번호가 달라요.'});
 }
 function alertSolo(next){show(`<h2>연습 모드</h2><p>Firebase 연결 정보가 아직 없어서 혼자 하기 모드로 시작해요. 기록은 선생님 화면에 보이지 않아요.</p><div class="btns"><button class="hot" id="ok">계속</button></div>`);dlg.querySelector('#ok').addEventListener('click',next)}
 function drawEditor(done){
