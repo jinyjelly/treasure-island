@@ -537,13 +537,26 @@ function join(){
   show(`<h2>보물섬 탈출</h2><p>폭풍에 배가 부서져 낯선 섬 해변에 떠밀려 왔다. 전설의 해적 선장 J가 이 섬 어딘가에 보물을 숨겼다고 한다.</p>
     <p>섬 곳곳의 단서를 모아 문 <b>5개</b>의 비밀번호를 알아내자. 가짜 단서도 있으니 조심!</p>
     <p class="msg hint">틀린 비밀번호는 +30초, 힌트는 +1분이 더해져요.</p>
-    <form id="jf"><div class="btns"><input id="rc" placeholder="방 코드" maxlength="8" autocomplete="off" style="flex:1 1 120px;text-transform:uppercase" value="${esc(q.get('room')||'')}" required>
+    <form id="jf"><div class="btns"><input id="rc" placeholder="방 코드" maxlength="8" autocomplete="off" style="flex:1 1 120px;text-transform:uppercase" value="${esc(q.get('room')||'')}">
     <input id="tn" placeholder="이름" maxlength="16" style="flex:2 1 160px" value="${esc(lastName)}" required></div>
-    <div class="btns"><button class="hot" type="submit" id="jb">입장하기</button><button type="button" class="alt" id="tch">🔒 선생님</button></div></form><div class="msg no" id="jm" aria-live="polite"></div>`);
+    <div class="btns"><button class="hot" type="submit" id="jb">입장하기</button><button type="button" id="solo">🏝 방 없이 혼자 하기</button><button type="button" class="alt" id="tch">🔒 선생님</button></div></form><div class="msg no" id="jm" aria-live="polite"></div>`);
   dlg.querySelector('#tch').addEventListener('click',teacherLogin);
+  dlg.querySelector('#solo').addEventListener('click',()=>{const name=dlg.querySelector('#tn').value.trim(),jm=dlg.querySelector('#jm');
+    if(!name){jm.className='msg no';jm.textContent='이름을 먼저 적어 주세요.';dlg.querySelector('#tn').focus();return}
+    auInit();ROOM='SOLO';KEY='treasure-v5-SOLO';
+    try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&v.open)S=Object.assign(fresh(),v);localStorage.setItem('treasure-name',name)}catch(x){}
+    S.team=name;CX=new Set(S.cx||[]);P.x=P.fx=S.px;P.y=P.fy=S.py;P.t=1;
+    const go=()=>{PETP={x:P.x,y:P.y};PETT={x:P.x,y:P.y};if(!S.start)S.start=Date.now();S.started=1;save();hud();close();onStep();if(S.open[4]&&S.end)win()};
+    show(`<h2>🏝 혼자 하기</h2><p>방 없이 혼자 섬을 탐험해요. 친구 캐릭터는 보이지 않고, <b>기록은 선생님 화면에 남지 않아요.</b></p>
+      <p class="msg hint">진행 상황은 이 기기에 저장돼서 다음에 이어서 할 수 있어요.</p>
+      <div class="btns"><button class="hot" id="sg">출발!</button>${S.started?'<button class="alt" id="sr">처음부터 다시</button>':''}<button class="alt" id="sb">돌아가기</button></div>`);
+    dlg.querySelector('#sg').addEventListener('click',()=>S.sprite?go():editor(go));
+    dlg.querySelector('#sb').addEventListener('click',join);
+    const sr=dlg.querySelector('#sr');if(sr)sr.addEventListener('click',()=>{const sp=S.sprite;S=fresh();S.team=name;S.sprite=sp;CX=new Set();P.x=P.fx=S.px;P.y=P.fy=S.py;curZone=-1;save();S.sprite?go():editor(go)})});
   dlg.querySelector('#jf').addEventListener('submit',async e=>{e.preventDefault();
     const room=dlg.querySelector('#rc').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),name=dlg.querySelector('#tn').value.trim(),jm=dlg.querySelector('#jm'),jb=dlg.querySelector('#jb');
-    if(!room||!name)return;auInit();jb.disabled=true;jm.className='msg hint';jm.textContent='섬에 접속하는 중…';
+    if(!name){jm.className='msg no';jm.textContent='이름을 적어 주세요.';return}
+    if(!room){jm.className='msg no';jm.textContent='방 코드를 적거나, "방 없이 혼자 하기"를 누르세요.';return}auInit();jb.disabled=true;jm.className='msg hint';jm.textContent='섬에 접속하는 중…';
     const r=await connect(room,name);
     if(r.err==='room'){jm.className='msg no';jm.textContent='그런 방이 없어요. 방 코드를 다시 확인하세요.';jb.disabled=false;return}
     if(r.err==='net'){jm.className='msg no';jm.textContent='접속하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.';jb.disabled=false;return}
