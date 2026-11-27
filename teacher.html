@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>보물섬 탈출 · 교사 화면</title>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;--sea:#0e5e6f;--ink:#1d2a2c;--mute:#5b6b6d;--line:#e3e8e8;--coral:#ff6b4a;--ok:#1f9d6b}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:#f4f7f7;color:var(--ink);font:15px/1.5 "Noto Sans KR",system-ui,sans-serif}
+header{background:var(--sea);color:#fff;padding:18px max(4vw,16px)}
+h1{font:400 30px/1.1 "Black Han Sans",sans-serif;margin:0}
+main{max-width:1200px;margin:0 auto;padding:18px max(3vw,12px) 50px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font:800 15px "Noto Sans KR",sans-serif;min-height:44px;padding:0 16px;border-radius:10px;border:0;cursor:pointer;background:var(--sea);color:#fff}
+button.alt{background:#fff;color:var(--sea);border:2px solid var(--sea)}
+button.hot{background:var(--coral)}
+input{font:600 16px "Noto Sans KR",sans-serif;padding:8px 12px;border:2px solid var(--line);border-radius:10px;min-height:44px}
+.code{font:400 64px/1 "Black Han Sans",sans-serif;letter-spacing:.08em;color:var(--coral)}
+.link{word-break:break-all;color:var(--mute);font-size:14px}
+.stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}
+.stats b{font:400 26px "Black Han Sans",sans-serif;display:block;color:var(--sea)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--mute);font-weight:600}
+td.t{font-variant-numeric:tabular-nums}
+td.t small{color:var(--mute);display:block}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#c9d1d1;margin-right:6px}
+.dot.on{background:var(--ok)}
+.done{color:var(--ok);font-weight:800}
+.scroll{overflow-x:auto}
+.msg{color:var(--mute);margin:8px 0 0}
+.err{color:#b3261e}
+</style>
+</head>
+<body>
+<header><h1>보물섬 탈출 · 교사 화면</h1></header>
+<main>
+  <section class="card" id="setup">
+    <div class="row">
+      <button class="hot" id="newB">새 방 만들기</button>
+      <input id="openI" placeholder="기존 방 코드" maxlength="8" style="text-transform:uppercase;width:150px">
+      <button class="alt" id="openB">방 열기</button>
+    </div>
+    <p class="msg" id="recent"></p>
+    <p class="msg" id="status">연결 중…</p>
+  </section>
+  <section class="card" id="roomC" hidden>
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div><div class="msg" style="margin:0">방 코드</div><div class="code" id="codeT"></div></div>
+      <div class="stats"><div><b id="sN">0</b>입장</div><div><b id="sO">0</b>지금 접속</div><div><b id="sF">0</b>탈출 완료</div></div>
+    </div>
+    <p class="link">학생 링크: <span id="linkT"></span></p>
+    <div class="row"><button class="alt" id="copyL">학생 링크 복사</button><button class="alt" id="copyC">기록 복사 (엑셀 붙여넣기용)</button></div>
+  </section>
+  <section class="card" id="tableC" hidden>
+    <div class="scroll"><table>
+      <thead><tr><th>이름</th><th>입장</th><th>정글 문</th><th>동굴 쇠창살</th><th>돌문</th><th>신전 돌문</th><th>보물 상자 (탈출)</th><th>오답</th><th>힌트</th></tr></thead>
+      <tbody id="tb"><tr><td colspan="9" class="msg">아직 들어온 학생이 없어요.</td></tr></tbody>
+    </table></div>
+    <p class="msg">각 칸의 작은 글씨는 입장한 뒤 걸린 시간이에요.</p>
+  </section>
+</main>
+<script type="module">
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const status=(t,err)=>{$('status').textContent=t;$('status').className='msg'+(err?' err':'')};
+let FS,RD,fs,db,uid,unsub=[],rows=[],online={},room='';
+try{
+  const {firebaseConfig:c}=await import('./firebase-config.js');
+  if(!c||!c.apiKey||/여기/.test(JSON.stringify(c)))throw new Error('config');
+  const B='https://www.gstatic.com/firebasejs/10.12.2/';
+  const [A,AU,F,R]=await Promise.all(['firebase-app.js','firebase-auth.js','firebase-firestore.js','firebase-database.js'].map(f=>import(B+f)));
+  FS=F;RD=R;const app=A.initializeApp(c);
+  uid=(await AU.signInAnonymously(AU.getAuth(app))).user.uid;
+  fs=FS.getFirestore(app);db=RD.getDatabase(app);
+  status('연결됐어요. 새 방을 만들거나 기존 방 코드를 입력하세요.');
+}catch(e){console.error(e);status(e.message==='config'?'firebase-config.js 에 Firebase 연결 정보를 먼저 넣어 주세요.':'Firebase에 연결하지 못했어요: '+e.message,true)}
+
+const recent=()=>{try{return JSON.parse(localStorage.getItem('treasure-rooms')||'[]')}catch(e){return[]}};
+const remember=c=>{try{localStorage.setItem('treasure-rooms',JSON.stringify([c,...recent().filter(x=>x!==c)].slice(0,6)))}catch(e){}showRecent()};
+function showRecent(){const r=recent();$('recent').innerHTML=r.length?'최근 방: '+r.map(c=>`<a href="#" data-c="${esc(c)}">${esc(c)}</a>`).join(' · '):'';
+  $('recent').querySelectorAll('a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openRoom(a.dataset.c)}))}
+showRecent();
+
+const CH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+$('newB').addEventListener('click',async()=>{if(!fs)return;
+  for(let k=0;k<5;k++){let c='';for(let i=0;i<5;i++)c+=CH[Math.floor(Math.random()*CH.length)];
+    const ref=FS.doc(fs,'escapeRooms',c);
+    try{if((await FS.getDoc(ref)).exists())continue;
+      await FS.setDoc(ref,{owner:uid,createdAt:FS.serverTimestamp(),title:'보물섬 탈출'});remember(c);return openRoom(c)}
+    catch(e){return status('방을 만들지 못했어요: '+e.message,true)}}
+});
+$('openB').addEventListener('click',()=>{const c=$('openI').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(c)openRoom(c)});
+
+async function openRoom(c){if(!fs)return;
+  const s=await FS.getDoc(FS.doc(fs,'escapeRooms',c)).catch(e=>null);
+  if(!s||!s.exists())return status('그런 방이 없어요: '+c,true);
+  unsub.forEach(f=>f());unsub=[];room=c;remember(c);
+  const link=new URL('index.html?room='+c,location.href).href;
+  $('codeT').textContent=c;$('linkT').textContent=link;$('roomC').hidden=false;$('tableC').hidden=false;
+  status('방 '+c+' 을 보고 있어요. 학생들이 들어오면 자동으로 표에 나타나요.');
+  unsub.push(FS.onSnapshot(FS.collection(fs,'escapeRooms',c,'players'),snap=>{rows=snap.docs.map(d=>({id:d.id,...d.data()}));render()},e=>status('기록을 불러오지 못했어요: '+e.message,true)));
+  const pr=RD.ref(db,'presence/'+c);
+  unsub.push(RD.onValue(pr,s=>{online=s.val()||{};render()}));
+}
+const tm=ts=>ts&&ts.toDate?ts.toDate():null;
+const hms=d=>d?d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'';
+const dur=(a,b)=>{if(!a||!b)return'';const s=Math.max(0,Math.round((b-a)/1000));return '+'+Math.floor(s/60)+'분 '+String(s%60).padStart(2,'0')+'초'};
+function render(){
+  rows.sort((a,b)=>{const fa=tm(a.g4),fb=tm(b.g4);if(fa&&fb)return fa-fb;if(fa)return -1;if(fb)return 1;
+    const na=[0,1,2,3].filter(i=>a['g'+i]).length,nb=[0,1,2,3].filter(i=>b['g'+i]).length;if(na!==nb)return nb-na;return (tm(a.joinedAt)||0)-(tm(b.joinedAt)||0)});
+  $('sN').textContent=rows.length;$('sO').textContent=Object.keys(online).length;$('sF').textContent=rows.filter(r=>r.g4).length;
+  if(!rows.length){$('tb').innerHTML='<tr><td colspan="9" class="msg">아직 들어온 학생이 없어요.</td></tr>';return}
+  $('tb').innerHTML=rows.map(r=>{const j=tm(r.joinedAt);
+    return `<tr><td><span class="dot ${online[r.id]?'on':''}"></span>${esc(r.name||'(이름 없음)')}</td><td class="t">${hms(j)}</td>
+    ${[0,1,2,3,4].map(i=>{const d=tm(r['g'+i]);return `<td class="t ${i===4&&d?'done':''}">${d?hms(d)+`<small>${dur(j,d)}</small>`:'—'}</td>`}).join('')}
+    <td>${+r.wrong||0}</td><td>${+r.hints||0}</td></tr>`}).join('');
+}
+async function copy(t,btn){try{await navigator.clipboard.writeText(t);const o=btn.textContent;btn.textContent='복사했어요';setTimeout(()=>btn.textContent=o,1500)}catch(e){prompt('아래 내용을 복사하세요',t)}}
+$('copyL').addEventListener('click',e=>copy($('linkT').textContent,e.target));
+$('copyC').addEventListener('click',e=>{const H=['이름','입장','정글 문','동굴 쇠창살','돌문','신전 돌문','보물 상자','탈출 소요','오답','힌트'];
+  const L=rows.map(r=>{const j=tm(r.joinedAt);return [r.name,hms(j),...[0,1,2,3,4].map(i=>hms(tm(r['g'+i]))),dur(j,tm(r.g4)).replace('+',''),+r.wrong||0,+r.hints||0].join('\t')});
+  copy([H.join('\t'),...L].join('\n'),e.target)});
+</script>
+</body>
+</html>
