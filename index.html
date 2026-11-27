@@ -65,7 +65,7 @@ input.code{letter-spacing:.3em;text-align:center}
 .snd{border:0;color:#fff;cursor:pointer;min-height:0;font-family:inherit}
 .toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(10,20,25,.82);color:#fff;padding:7px 16px;border-radius:99px;font-weight:800;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
 .toast.on{opacity:1}
-.bq{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.bq button{min-height:60px;font-size:24px}
+.bq{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.bq button{min-height:64px;font-size:24px;padding:4px}.bq .katex{font-size:1.05em}
 .emo{display:flex;gap:6px}.emo button{flex:1;min-height:48px;font-size:22px;background:rgba(255,255,255,.16);padding:0}
 canvas{touch-action:none}
 @media(min-width:700px){.pad{grid-template-columns:repeat(3,76px);grid-template-rows:repeat(3,76px)}.pad button{font-size:28px}}
@@ -138,6 +138,7 @@ rect(41,22,53,22,'R');rect(41,23,41,28,'R');rect(53,23,53,28,'R');rect(42,23,52,
 // E 해적왕의 신전
 rect(32,32,62,44,'X');rect(33,33,61,43,'=');rect(33,37,57,37,'X');rect(37,40,61,40,'X');g[32][47]='=';
 [[38,35],[52,35],[46,38],[40,42],[56,42]].forEach(([x,y])=>g[y][x]='X');
+const zoneOf=(x,y)=>x<=31?(y<=27?1:0):(y<=20?2:y<=31?3:4);
 const BLOCK=new Set(['~','T','P','R','#','W','B','^','X']);
 const TALL=new Set(['T','P','R','#','W','B','^','X']);
 // 막다른 길 찾기 (단서를 숨길 곳)
@@ -216,8 +217,11 @@ O.forEach(o=>{const p=POS[o.id];if(p){o.x=p[0];o.y=p[1]}});
 O.push({id:'cmap',k:'scroll',junk:1,t:'낡은 동굴 지도',h:'<p>먼저 왔던 탐험가가 떨어뜨린 지도다! 이제 동굴에서 <b>지나온 길이 화면 오른쪽 위 지도에 그려진다.</b> 수정을 찾으면 지도에 색깔 점으로 표시된다.</p>'});
 {const p=DE_C[DE_C.length-1];O[O.length-1].x=p[0];O[O.length-1].y=p[1]}
 const OM={};O.forEach(o=>{OM[o.x+','+o.y]=o});
-const BATS=[];{const fl=[];for(let y=3;y<=19;y++)for(let x=38;x<=60;x++)if(g[y][x]==='_'&&!OM[x+','+y]&&!(x>=44&&x<=50&&y>=8&&y<=14))fl.push([x,y]);
-  for(let i=0;i<5;i++){const p=fl[Math.floor(rnd()*fl.length)];BATS.push({id:i,x:p[0],y:p[1],fx:p[0],fy:p[1],t:1,dir:null})}}
+const FOES=[];{
+  const ENT=[[5,40],[15,27],[33,11],[54,21],[47,33]],SPEC=[['crab',0,3,620,0],['snake',1,4,520,7],['bat',2,5,480,7],['skel',3,3,430,7],['mummy',4,3,560,6]];
+  SPEC.forEach(([k,z,n,sp,ch])=>{const fl=[];for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const c=g[y][x];if(BLOCK.has(c)||c==='H'||c==='b'||OM[x+','+y]||zoneOf(x,y)!==z)continue;
+      const[ex,ey]=ENT[z];if(Math.abs(x-ex)+Math.abs(y-ey)<7)continue;if(z===2&&x>=44&&x<=50&&y>=8&&y<=14)continue;fl.push([x,y])}
+    for(let i=0;i<n;i++){const p=fl[Math.floor(rnd()*fl.length)];FOES.push({id:FOES.length,k,z,sp,ch,x:p[0],y:p[1],fx:p[0],fy:p[1],t:1,dir:null})}})}
 
 let KEY='treasure-v4';const SALT='bosul-island-2026|';
 const sha=async t=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(SALT+t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
@@ -358,7 +362,7 @@ function frame(tm){
   ctx.fillStyle='#1d8aa0';ctx.fillRect(0,0,CW,CH);
   const x0=Math.floor(camX/T),y0=Math.floor(camY/T),x1=Math.min(W-1,x0+Math.ceil(CW/T)+1),y1=Math.min(H-1,y0+Math.ceil(CH/T)+1);
   for(let y=Math.max(0,y0);y<=y1;y++)for(let x=Math.max(0,x0);x<=x1;x++){ground(g[y][x],x,y,x*T-camX,y*T-camY,tm)}
-  CAM.x=camX;CAM.y=camY;
+  CAM.x=camX;CAM.y=camY;foesUpdate(dt);
   COINS.forEach(([x,y],i)=>{if(S.coins.includes(i))return;const px=x*T-camX,py=y*T-camY;if(px<-T||py<-T||px>CW||py>CH)return;
     const w=Math.abs(Math.cos(tm/300+i))*T*.22+2,bob=Math.sin(tm/400+i)*3;ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(px+T/2,py+T*.8,T*.16,T*.05,0,0,7);ctx.fill();
     ctx.fillStyle='#ffc83d';ctx.strokeStyle='#b8860b';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(px+T/2,py+T*.45+bob,w,T*.22,0,0,7);ctx.fill();ctx.stroke()});
@@ -368,6 +372,7 @@ function frame(tm){
     for(let x=Math.max(0,x0);x<=x1;x++){const c=g[y][x];if(TALL.has(c))tall(c,x,y,x*T-camX,y*T-camY,tm)}
     for(let x=Math.max(0,x0);x<=x1;x++){const o=OM[x+','+y];if(o&&!(o.gate!=null&&o.gate<4&&S.open[o.gate]))obj(o,x*T-camX,y*T-camY,tm)}
     const nOpen=S.open.filter(Boolean).length;
+    for(const e of FOES){if(e.k==='bat'||!alive(e)||e.z>nOpen)continue;const ex=e.rx??e.x,ey=e.ry??e.y;if(Math.round(ey)!==y)continue;const qx=ex*T-camX,qy=ey*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawFoe(e,qx,qy,tm)}
     for(const k in others){const q=others[k];if(Math.round(q.ry)!==y||zoneOf(q.x,q.y)>nOpen)continue;
       const qx=q.rx*T-camX,qy=q.ry*T-camY;if(qx<-T||qy<-T||qx>CW||qy>CH)continue;drawSprite(q.s,qx,qy);label(q.n,qx+T/2,qy-3);if(q.es&&tm-q.es<2500)bubble(EMO[q.e],qx+T/2,qy-T*.15,tm-q.es)}
     if(y===Math.round(ry)){drawSprite(S.sprite||DEFA,rx*T-camX,ry*T-camY+(P.t<1?Math.sin(tm/60)*1.5:0));label(S.team,rx*T-camX+T/2,ry*T-camY-3);if(MYE&&tm-MYE.t<2500)bubble(EMO[MYE.e],rx*T-camX+T/2,ry*T-camY-T*.45,tm-MYE.t)}}
@@ -432,7 +437,7 @@ function win(){
   const ttl=hn===0&&S.wrong===0?'전설의 해적왕':hn===0&&S.wrong<=2?'명탐정 선장':cn===COINS.length?'황금 수집가':S.wrong<=5?'용감한 항해사':'끈질긴 모험가';
   show(`<h2>보물을 찾았다!</h2><p><b>${esc(S.team)}</b> 해적단, 탈출 성공!</p>
     <p class="big" style="font-size:20px">칭호: <b style="color:var(--coral)">${ttl}</b></p>
-    <p>모은 금화 🪙 ${cn} / ${COINS.length}${cn===COINS.length?' (모두 찾았다!)':''} · 쫓아낸 박쥐 🦇 ${S.bats.length} / ${BATS.length}</p>
+    <p>모은 금화 🪙 ${cn} / ${COINS.length}${cn===COINS.length?' (모두 찾았다!)':''} · 물리친 방해꾼 ⚔ ${S.bats.length} / ${FOES.length}</p>
     <div class="big" style="font:400 48px 'Black Han Sans',sans-serif;color:var(--coral)">${fmt(total())}</div>
     <p>틀린 시도 ${S.wrong}번 (+${S.wrong*30}초) · 힌트 ${S.hint.filter(Boolean).length}번 (+${S.hint.filter(Boolean).length}분)</p>
     <p class="msg hint">완료 ${new Date(S.end).toLocaleString('ko-KR')} — 이 화면을 캡처해서 제출하세요.</p>
@@ -489,7 +494,7 @@ function drawSprite(sp,px,py){const c=spriteCanvas(sp),big=c.width===16;
   ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(px+T/2,py+T*.93,T*.26,T*.07,0,0,7);ctx.fill();
   ctx.imageSmoothingEnabled=false;const z=big?T*.94:T*.84;ctx.drawImage(c,px+(T-z)/2,py+T*(big?-.02:.04),z,z)}
 function label(n,cx,y){if(!n)return;ctx.font='700 12px "Noto Sans KR",sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.75)';ctx.strokeText(n,cx,y);ctx.fillStyle='#fff';ctx.fillText(n,cx,y)}
-const zoneOf=(x,y)=>x<=31?(y<=27?1:0):(y<=20?2:y<=31?3:4);
+
 
 let net={on:false,gate(){},wrong(){},hint(){},pos(){},emote(){}},others={},ROOM='';
 async function connect(room,name){
@@ -647,6 +652,7 @@ const SFX={pop:[[660,0,.07,'square',.1],[990,.05,.08,'square',.08]],
   win:[[523,0,.14,'square',.14],[659,.13,.14,'square',.14],[784,.26,.14,'square',.14],[1047,.39,.25,'square',.15],[784,.66,.14,'square',.14],[1047,.8,.6,'square',.16],[262,0,.9,'triangle',.18],[392,.39,.9,'triangle',.16]],
   hint:[[880,0,.12,'sine',.16],[1175,.1,.2,'sine',.14]],
   emote:[[1200,0,.06,'square',.06],[1500,.05,.06,'square',.05]],
+  foe:[[300,0,.1,'square',.12],[220,.09,.12,'square',.12],[160,.2,.2,'square',.12]],
   bat:[[1400,0,.06,'sawtooth',.08],[1800,.06,.06,'sawtooth',.08],[1300,.12,.08,'sawtooth',.08],[900,.2,.15,'square',.1]],
   zone:[[392,0,.16,'triangle',.16],[523,.13,.16,'triangle',.16],[659,.26,.35,'triangle',.16]]};
 function sfx(n){if(!AU.ctx||AU.mode===2)return;auResume();const t=AU.ctx.currentTime+.01;(SFX[n]||[]).forEach(([f,o,d,ty,v])=>tone(f,t+o,d,ty,v))}
@@ -667,51 +673,79 @@ function playZone(z){if(AU.zone===z&&AU.timer)return;stopBgm();AU.zone=z;if(!AU.
       if(mn)tone(mf(mn),next,dur*1.6,s.w,s.v||.045,AU.bg);if(s.drip&&step%16===9)tone(1900-((step*37)%5)*120,next,.12,'sine',.07,AU.bg);if(bn)tone(mf(bn),next,dur*1.7,'triangle',.08,AU.bg);
       if(s.dr&&step%4===0)hit(next,.06,.12);if(s.dr===2&&step%4===2)hit(next,.03,.06);next+=dur;step++}},60)}
 
-// ===== 박쥐와 동굴 지도 =====
+// ===== 방해꾼과 동굴 지도 =====
 let CX=new Set(),SAFE=0;
+const FW=(e,x,y)=>y>0&&y<H-1&&x>0&&x<W-1&&!BLOCK.has(g[y][x])&&g[y][x]!=='H'&&g[y][x]!=='b'&&!OM[x+','+y]&&zoneOf(x,y)===e.z&&!(e.z===2&&(x<34||y>19));
+function foeStep(e){const k=(x,y)=>x+','+y,prev=new Map([[k(e.x,e.y),null]]),q=[[e.x,e.y]];
+  while(q.length){const[x,y]=q.shift();if(x===P.x&&y===P.y){let c=k(x,y),d=null;while(prev.get(c)){const[pk,pd]=prev.get(c);d=pd;c=pk}return d}
+    for(const dd in D){const nx=x+D[dd][0],ny=y+D[dd][1],nk=k(nx,ny);if(prev.has(nk)||Math.abs(nx-e.x)+Math.abs(ny-e.y)>16)continue;
+      if(!(nx===P.x&&ny===P.y)&&!FW(e,nx,ny))continue;prev.set(nk,[k(x,y),dd]);q.push([nx,ny])}}
+  return null}
+const alive=e=>!S.bats.includes(e.id);
+function foesUpdate(dt){if(modal||!S.started)return;const pz=zoneOf(P.x,P.y),now=performance.now();
+  for(const e of FOES){if(!alive(e)||e.z!==pz)continue;e.t+=dt/e.sp;
+    if(e.t>=1){e.fx=e.x;e.fy=e.y;e.t=0;
+      const ok=Object.keys(D).filter(d=>{const x=e.x+D[d][0],y=e.y+D[d][1];return FW(e,x,y)&&!FOES.some(o=>o!==e&&alive(o)&&o.x===x&&o.y===y)});
+      if(ok.length){let d=null;const dist=Math.abs(e.x-P.x)+Math.abs(e.y-P.y);
+        if(e.ch&&dist<=e.ch&&Math.random()<.7){const st=foeStep(e);if(st&&ok.includes(st))d=st}
+        if(!d){const side=e.k==='crab'?ok.filter(o=>o==='left'||o==='right'):ok;const pool=side.length?side:ok;const back={up:'down',down:'up',left:'right',right:'left'}[e.dir];
+          const f=e.k==='crab'&&pool.includes(e.dir)&&Math.random()<.8?[e.dir]:pool.filter(o=>o!==back);d=(f.length?f:pool)[Math.floor(Math.random()*(f.length?f:pool).length)]}
+        e.dir=d;e.x+=D[d][0];e.y+=D[d][1]}}
+    e.rx=e.fx+(e.x-e.fx)*Math.min(1,e.t);e.ry=e.fy+(e.y-e.fy)*Math.min(1,e.t);
+    const prx=P.fx+(P.x-P.fx)*P.t,pry=P.fy+(P.y-P.fy)*P.t;
+    if(now>SAFE&&Math.hypot(e.rx-prx,e.ry-pry)<.6){foeFight(e);return}}}
+function drawFoe(e,px,py,tm){const cx=px+T/2,cy=py+T/2,k=e.k;
+  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(cx,py+T*.88,T*.3,T*.08,0,0,7);ctx.fill();
+  if(k==='crab'){const w=Math.sin(tm/90+e.id)*T*.04;ctx.fillStyle='#e8432e';ctx.beginPath();ctx.ellipse(cx,cy+T*.12,T*.3,T*.2,0,0,7);ctx.fill();
+    [-1,1].forEach(sg=>{ctx.beginPath();ctx.arc(cx+sg*T*.38,cy-T*.05+w*sg,T*.12,0,7);ctx.fill();ctx.strokeStyle='#e8432e';ctx.lineWidth=3;
+      for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(cx+sg*T*.2,cy+T*.18+i*4);ctx.lineTo(cx+sg*T*.38,cy+T*.3+i*4+w);ctx.stroke()}});
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cx-T*.08,cy-T*.08,T*.06,0,7);ctx.arc(cx+T*.08,cy-T*.08,T*.06,0,7);ctx.fill();ctx.fillStyle='#000';ctx.fillRect(cx-T*.09,cy-T*.09,3,3);ctx.fillRect(cx+T*.07,cy-T*.09,3,3)}
+  else if(k==='snake'){ctx.strokeStyle='#3fa34d';ctx.lineWidth=T*.14;ctx.lineCap='round';ctx.beginPath();for(let i=0;i<=8;i++){const x=cx-T*.35+i*T*.08,y=cy+T*.2+Math.sin(tm/150+i*.9+e.id)*T*.08;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();ctx.lineCap='butt';
+    ctx.fillStyle='#2e8b3e';ctx.beginPath();ctx.ellipse(cx+T*.32,cy+T*.05,T*.15,T*.12,0,0,7);ctx.fill();ctx.fillStyle='#ffeb3b';ctx.beginPath();ctx.arc(cx+T*.36,cy,T*.04,0,7);ctx.fill();
+    if(Math.sin(tm/200)>0){ctx.strokeStyle='#e53935';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+T*.46,cy+T*.06);ctx.lineTo(cx+T*.58,cy+T*.02);ctx.stroke()}}
+  else if(k==='skel'){const b=Math.sin(tm/120+e.id)*2;ctx.strokeStyle='#f1ede3';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy-T*.05+b);ctx.lineTo(cx,cy+T*.25+b);
+    ctx.moveTo(cx-T*.15,cy+b);ctx.lineTo(cx+T*.15,cy+b);ctx.moveTo(cx-T*.12,cy+T*.1+b);ctx.lineTo(cx+T*.12,cy+T*.1+b);ctx.moveTo(cx,cy+T*.25+b);ctx.lineTo(cx-T*.12,cy+T*.42);ctx.moveTo(cx,cy+T*.25+b);ctx.lineTo(cx+T*.12,cy+T*.42);
+    ctx.moveTo(cx-T*.15,cy+b);ctx.lineTo(cx-T*.25,cy+T*.2+b);ctx.moveTo(cx+T*.15,cy+b);ctx.lineTo(cx+T*.28,cy-T*.15+b);ctx.stroke();
+    ctx.fillStyle='#f1ede3';ctx.beginPath();ctx.arc(cx,cy-T*.22+b,T*.17,0,7);ctx.fill();ctx.fillStyle='#222';ctx.beginPath();ctx.arc(cx-T*.06,cy-T*.23+b,T*.045,0,7);ctx.arc(cx+T*.06,cy-T*.23+b,T*.045,0,7);ctx.fill();
+    ctx.fillStyle='#8d8d8d';ctx.fillRect(cx+T*.26,cy-T*.4+b,3,T*.3)}
+  else if(k==='mummy'){const b=Math.sin(tm/300+e.id)*2;ctx.fillStyle='#e3d7b8';ctx.beginPath();ctx.roundRect(cx-T*.18,cy-T*.32+b,T*.36,T*.7,T*.12);ctx.fill();
+    ctx.strokeStyle='#b8a982';ctx.lineWidth=2;for(let i=0;i<6;i++){ctx.beginPath();ctx.moveTo(cx-T*.18,cy-T*.2+i*T*.1+b);ctx.lineTo(cx+T*.18,cy-T*.25+i*T*.1+b);ctx.stroke()}
+    ctx.fillStyle='#3ddc84';ctx.beginPath();ctx.arc(cx-T*.07,cy-T*.17+b,T*.035,0,7);ctx.arc(cx+T*.07,cy-T*.17+b,T*.035,0,7);ctx.fill();
+    ctx.fillStyle='#e3d7b8';ctx.fillRect(cx+T*.15,cy-T*.08+b,T*.2,T*.08);ctx.fillRect(cx-T*.35,cy-T*.08+b,T*.2,T*.08)}}
 function batsFrame(dt,tm,camX,camY,rx,ry){
-  const now=performance.now();
-  for(const b of BATS){if(S.bats.includes(b.id))continue;
-    if(!modal&&S.started){b.t+=dt/480;if(b.t>=1){b.fx=b.x;b.fy=b.y;b.t=0;
-      const ok=Object.keys(D).filter(d=>{const x=b.x+D[d][0],y=b.y+D[d][1];return x>=34&&y>=2&&y<=19&&g[y][x]==='_'&&!OM[x+','+y]&&!BATS.some(o=>o!==b&&!S.bats.includes(o.id)&&o.x===x&&o.y===y)});
-      if(ok.length){const dist=Math.abs(b.x-P.x)+Math.abs(b.y-P.y);let d;
-        const st=dist<=7&&Math.random()<.7?batStep(b):null;if(st&&ok.includes(st)){d=st}
-        else{const back={up:'down',down:'up',left:'right',right:'left'}[b.dir];const f=ok.filter(o=>o!==back);d=(f.length?f:ok)[Math.floor(Math.random()*(f.length?f:ok).length)]}
-        b.dir=d;b.x+=D[d][0];b.y+=D[d][1]}}}
-    const bx=b.fx+(b.x-b.fx)*Math.min(1,b.t),by=b.fy+(b.y-b.fy)*Math.min(1,b.t);
+  for(const b of FOES){if(b.k!=='bat'||!alive(b))continue;const bx=b.rx??b.x,by=b.ry??b.y;
     const px=bx*T-camX+T/2,py=by*T-camY+T/2-T*.25+Math.sin(tm/150+b.id)*4,dd=Math.hypot(bx-rx,by-ry);
-    if(px<-T||py<-T||px>CW+T||py>CH+T)continue;
-    const flap=Math.sin(tm/60+b.id)*.5+.5;
+    if(px<-T||py<-T||px>CW+T||py>CH+T)continue;const flap=Math.sin(tm/60+b.id)*.5+.5;
     if(dd<4){ctx.fillStyle='#2b1d33';ctx.beginPath();ctx.ellipse(px,py,T*.14,T*.17,0,0,7);ctx.fill();
       [-1,1].forEach(sg=>{ctx.beginPath();ctx.moveTo(px+sg*T*.1,py-T*.05);ctx.lineTo(px+sg*T*.45,py-T*(.25*flap));ctx.lineTo(px+sg*T*.35,py+T*.1);ctx.lineTo(px+sg*T*.22,py+T*.02);ctx.lineTo(px+sg*T*.12,py+T*.1);ctx.fill()});
       ctx.beginPath();ctx.moveTo(px-T*.1,py-T*.12);ctx.lineTo(px-T*.06,py-T*.26);ctx.lineTo(px-T*.02,py-T*.14);ctx.moveTo(px+T*.1,py-T*.12);ctx.lineTo(px+T*.06,py-T*.26);ctx.lineTo(px+T*.02,py-T*.14);ctx.fill()}
-    ctx.fillStyle='#ff3b3b';ctx.beginPath();ctx.arc(px-T*.05,py-T*.04,T*.035,0,7);ctx.arc(px+T*.05,py-T*.04,T*.035,0,7);ctx.fill();
-    if(!modal&&S.started&&now>SAFE&&dd<.6)batFight(b)}
-}
-function batStep(b){const k=(x,y)=>x+','+y,prev=new Map([[k(b.x,b.y),null]]),q=[[b.x,b.y]];
-  while(q.length){const[x,y]=q.shift();if(x===P.x&&y===P.y){let c=k(x,y),d=null;while(prev.get(c)){const[pk,pd]=prev.get(c);d=pd;c=pk}return d}
-    for(const dd in D){const nx=x+D[dd][0],ny=y+D[dd][1],nk=k(nx,ny);if(prev.has(nk)||nx<33||ny<2||ny>19||g[ny][nx]!=='_')continue;if(Math.abs(nx-b.x)+Math.abs(ny-b.y)>14)continue;prev.set(nk,[k(x,y),dd]);q.push([nx,ny])}}
-  return null}
+    ctx.fillStyle='#ff3b3b';ctx.beginPath();ctx.arc(px-T*.05,py-T*.04,T*.035,0,7);ctx.arc(px+T*.05,py-T*.04,T*.035,0,7);ctx.fill()}}
 function miniMap(){if(!S.cmap)return;const s=Math.max(3,Math.min(6,Math.floor(T/9))),mx=CW-30*s-14,my=12;
   ctx.fillStyle='rgba(20,14,10,.75)';ctx.fillRect(mx-6,my-6,30*s+12,18*s+12);ctx.strokeStyle='#c4a46a';ctx.lineWidth=2;ctx.strokeRect(mx-6,my-6,30*s+12,18*s+12);
   ctx.fillStyle='#c9b48e';CX.forEach(k=>{const[x,y]=k.split(',').map(Number);ctx.fillRect(mx+(x-32)*s,my+(y-2)*s,s,s)});
   O.forEach(o=>{if(o.k==='crystal'&&S.seen.includes(o.id)){ctx.fillStyle=o.c;ctx.fillRect(mx+(o.x-32)*s-1,my+(o.y-2)*s-1,s+2,s+2)}});
   if(CX.has('54,19')){ctx.fillStyle='#ffc83d';ctx.fillRect(mx+(54-32)*s-1,my+(20-2)*s-2,s+2,s+2)}
   if(Math.floor(performance.now()/400)%2){ctx.fillStyle='#ff3b3b';ctx.fillRect(mx+(P.x-32)*s-1,my+(P.y-2)*s-1,s+2,s+2)}}
-const rnd2=n=>Math.floor(Math.random()*n);
-function batQ(){const r=rnd2(4);let q,a;
-  if(r===0){const n=2+rnd2(11);q=`\\sqrt{${n*n}}`;a=n}
-  else if(r===1){const n=2+rnd2(18);q=`(\\sqrt{${n}})^2`;a=n}
-  else if(r===2){const p=[[2,8,4],[3,12,6],[2,18,6],[5,20,10],[3,27,9],[2,32,8],[6,24,12],[2,50,10]][rnd2(8)];q=`\\sqrt{${p[0]}}\\times\\sqrt{${p[1]}}`;a=p[2]}
-  else{const k=2+rnd2(4),m=[2,3,5,6,7][rnd2(5)];q=`\\sqrt{${k*k*m}}=\\square\\sqrt{${m}}`;a=k}
-  const o=new Set([a]);for(const d of [1,-1,2,a,-2,3]){if(o.size>=4)break;const v=a+d;if(v>0)o.add(v)}
-  return{q,a,opts:[...o].sort(()=>Math.random()-.5)}}
-function batFight(b){sfx('bat');let Q=batQ();
-  const draw=(msg)=>{show(`<h2>🦇 박쥐가 길을 막았다!</h2><p>박쥐를 쫓아내려면 문제를 맞혀야 해!</p><div class="big">${tex('$'+Q.q+'$')}</div>
-    <div class="bq">${Q.opts.map(v=>`<button type="button" data-v="${v}">${v}</button>`).join('')}</div><div class="msg no" id="bm">${msg||''}</div>`);
+const rnd2=n=>Math.floor(Math.random()*n),pickR=a=>a[rnd2(a.length)];
+function numQ(q,a){const o=new Set([a]);for(const d of [1,-1,2,-2,3,a]){if(o.size>=4)break;const v=a+d;if(v>0)o.add(v)}const opts=[...o].sort(()=>Math.random()-.5);return{q,opts:opts.map(String),a:opts.indexOf(a)}}
+function choiceQ(q,right,wrong){const opts=[right,...wrong.sort(()=>Math.random()-.5).slice(0,3)].sort(()=>Math.random()-.5);return{q,opts,a:opts.indexOf(right),tex:1}}
+const QG={
+  crab:()=>{const r=rnd2(3),n=2+rnd2(10);return r===0?numQ(`\\sqrt{${n*n}}`,n):r===1?numQ(`(-\\sqrt{${n+1}})^2`,n+1):numQ(`\\sqrt{(-${n})^2}`,n)},
+  snake:()=>rnd2(2)?choiceQ('\\text{다음 중 무리수는?}',pickR(['\\sqrt{2}','\\sqrt{7}','\\pi','-\\sqrt{5}','\\sqrt{0.1}','\\sqrt{12}']),['\\sqrt{4}','0.5','-\\sqrt{9}','\\sqrt{0.25}','\\dfrac{3}{7}','\\sqrt{\\dfrac{16}{9}}','0.\\dot{3}'])
+    :choiceQ('\\text{가장 큰 수는?}',...pickR([['\\sqrt{5}',['2','\\sqrt{3}','1.5']],['3',['\\sqrt{8}','\\sqrt{5}','2.5']],['\\sqrt{17}',['4','\\sqrt{15}','3.9']],['\\sqrt{10}',['3','\\sqrt{8}','2.9']]])),
+  bat:()=>{const r=rnd2(4);if(r===0){const n=2+rnd2(11);return numQ(`\\sqrt{${n*n}}`,n)}if(r===1){const n=2+rnd2(18);return numQ(`(\\sqrt{${n}})^2`,n)}
+    if(r===2){const p=pickR([[2,8,4],[3,12,6],[2,18,6],[5,20,10],[3,27,9],[2,32,8],[6,24,12],[2,50,10]]);return numQ(`\\sqrt{${p[0]}}\\times\\sqrt{${p[1]}}`,p[2])}
+    const k=2+rnd2(4),m=pickR([2,3,5,6,7]);return numQ(`\\sqrt{${k*k*m}}=\\square\\sqrt{${m}}`,k)},
+  skel:()=>{const r=rnd2(2);if(r){const a=1+rnd2(5),b=1+rnd2(5),m=pickR([2,3,5]);return numQ(`${a}\\sqrt{${m}}+${b}\\sqrt{${m}}=\\square\\sqrt{${m}}`,a+b)}
+    const p=pickR([['\\sqrt{8}+\\sqrt{2}',2,3],['\\sqrt{27}-\\sqrt{3}',3,2],['\\sqrt{18}-\\sqrt{2}',2,2],['\\sqrt{12}+\\sqrt{3}',3,3],['\\sqrt{50}-\\sqrt{8}',2,3],['\\sqrt{20}+\\sqrt{5}',5,3]]);return numQ(`${p[0]}=\\square\\sqrt{${p[1]}}`,p[2])},
+  mummy:()=>{if(rnd2(2)){let n;do{n=2+rnd2(60)}while(Number.isInteger(Math.sqrt(n)));return numQ(`\\sqrt{${n}}\\text{ 의 정수 부분은?}`,Math.floor(Math.sqrt(n)))}return QG[pickR(['bat','skel'])]()}};
+const FT={crab:'🦀 게가 집게를 휘두른다!',snake:'🐍 뱀이 길을 막았다!',bat:'🦇 박쥐가 길을 막았다!',skel:'💀 해골 병사가 나타났다!',mummy:'🧟 미라가 깨어났다!'};
+function foeFight(e){sfx(e.k==='bat'?'bat':'foe');let Q=QG[e.k]();
+  const draw=msg=>{show(`<h2>${FT[e.k]}</h2><p>지나가려면 문제를 맞혀야 해!</p><div class="big">${tex('$'+Q.q+'$')}</div>
+    <div class="bq">${Q.opts.map((v,i)=>`<button type="button" data-i="${i}">${Q.tex?tex('$'+v+'$'):v}</button>`).join('')}</div><div class="msg no" id="bm">${msg||''}</div>`);
     dlg.querySelectorAll('.bq button').forEach(btn=>btn.addEventListener('click',()=>{
-      if(+btn.dataset.v===Q.a){S.bats.push(b.id);save();sfx('coin');confetti(30);close();SAFE=performance.now()+2500;toast('🦇 박쥐를 쫓아냈다! ('+S.bats.length+'/'+BATS.length+')')}
-      else{S.pen+=10;save();hud();sfx('wrong');Q=batQ();draw('박쥐에게 물렸다! (+10초) 다른 문제야!');dlg.classList.remove('shake');void dlg.offsetWidth;dlg.classList.add('shake')}}))};
+      if(+btn.dataset.i===Q.a){S.bats.push(e.id);save();sfx('coin');confetti(30);close();SAFE=performance.now()+2500;const n=FOES.filter(o=>o.z===e.z&&!alive(o)).length,m=FOES.filter(o=>o.z===e.z).length;toast('물리쳤다! 이 구역 방해꾼 '+n+'/'+m)}
+      else{S.pen+=10;save();hud();sfx('wrong');Q=QG[e.k]();draw('공격당했다! (+10초) 다른 문제야!');dlg.classList.remove('shake');void dlg.offsetWidth;dlg.classList.add('shake')}}))};
   draw()}
 const act=()=>{auResume();if(modal)return;const n=near();if(n)inspect(n)};
 promptB.addEventListener('click',act);document.getElementById('actB').addEventListener('click',act);
